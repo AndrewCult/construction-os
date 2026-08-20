@@ -18,6 +18,7 @@ BOOT_OBJECT := $(BUILD_DIR)/boot.o
 KERNEL_OBJECT := $(BUILD_DIR)/kernel.o
 KERNEL_ELF := $(BUILD_DIR)/kernel.elf
 ISO_IMAGE := $(BUILD_DIR)/construction-os.iso
+TERMINAL_OBJECT := $(BUILD_DIR)/terminal.o
 
 # Source files.
 BOOT_SOURCE := src/arch/i386/boot.asm
@@ -35,7 +36,8 @@ CFLAGS := \
 	-Wall \
 	-Wextra \
 	-Wpedantic \
-	-O2
+	-O2 \
+	-Iinclude
 
 # Targets that represent actions instead of real files.
 .PHONY: all check iso run clean
@@ -49,17 +51,22 @@ $(BOOT_OBJECT): $(BOOT_SOURCE)
 	$(AS) -f elf32 $< -o $@
 
 # Compile the freestanding C kernel.
-$(KERNEL_OBJECT): $(KERNEL_SOURCE)
+$(KERNEL_OBJECT): $(KERNEL_SOURCE) include/kernel/terminal.h
+	mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(TERMINAL_OBJECT): src/kernel/terminal.c include/kernel/terminal.h
 	mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 # Link all objects into the final ELF kernel.
-$(KERNEL_ELF): $(BOOT_OBJECT) $(KERNEL_OBJECT) $(LINKER_SCRIPT)
+$(KERNEL_ELF): $(BOOT_OBJECT) $(KERNEL_OBJECT) $(TERMINAL_OBJECT) $(LINKER_SCRIPT)
 	$(LD) \
 		-T $(LINKER_SCRIPT) \
 		-o $@ \
 		$(BOOT_OBJECT) \
-		$(KERNEL_OBJECT)
+		$(KERNEL_OBJECT) \
+		$(TERMINAL_OBJECT)
 
 # Verify that GRUB recognizes the ELF as a Multiboot kernel.
 check: $(KERNEL_ELF)
