@@ -19,6 +19,7 @@ KERNEL_OBJECT := $(BUILD_DIR)/kernel.o
 KERNEL_ELF := $(BUILD_DIR)/kernel.elf
 ISO_IMAGE := $(BUILD_DIR)/construction-os.iso
 TERMINAL_OBJECT := $(BUILD_DIR)/terminal.o
+SERIAL_OBJECT := $(BUILD_DIR)/serial.o
 
 # Source files.
 BOOT_SOURCE := src/arch/i386/boot.asm
@@ -59,14 +60,19 @@ $(TERMINAL_OBJECT): src/kernel/terminal.c include/kernel/terminal.h
 	mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
+$(SERIAL_OBJECT): src/kernel/serial.c include/kernel/serial.h include/arch/i386/io.h
+	mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
 # Link all objects into the final ELF kernel.
-$(KERNEL_ELF): $(BOOT_OBJECT) $(KERNEL_OBJECT) $(TERMINAL_OBJECT) $(LINKER_SCRIPT)
+$(KERNEL_ELF): $(BOOT_OBJECT) $(KERNEL_OBJECT) $(TERMINAL_OBJECT) $(SERIAL_OBJECT) $(LINKER_SCRIPT)
 	$(LD) \
 		-T $(LINKER_SCRIPT) \
 		-o $@ \
 		$(BOOT_OBJECT) \
 		$(KERNEL_OBJECT) \
-		$(TERMINAL_OBJECT)
+		$(TERMINAL_OBJECT) \
+		$(SERIAL_OBJECT)
 
 # Verify that GRUB recognizes the ELF as a Multiboot kernel.
 check: $(KERNEL_ELF)
@@ -89,6 +95,7 @@ run: $(ISO_IMAGE)
 		-cdrom $(ISO_IMAGE) \
 		-m 128M \
 		-display gtk \
+		-serial stdio \
 		-no-reboot \
 		-no-shutdown
 
