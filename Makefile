@@ -20,6 +20,10 @@ KERNEL_ELF := $(BUILD_DIR)/kernel.elf
 ISO_IMAGE := $(BUILD_DIR)/construction-os.iso
 TERMINAL_OBJECT := $(BUILD_DIR)/terminal.o
 SERIAL_OBJECT := $(BUILD_DIR)/serial.o
+IDT_OBJECT := $(BUILD_DIR)/idt.o
+IDT_LOAD_OBJECT := $(BUILD_DIR)/idt_load.o
+EXCEPTIONS_OBJECT := $(BUILD_DIR)/exceptions.o
+EXCEPTIONS_ASM_OBJECT := $(BUILD_DIR)/exceptions_asm.o
 
 # Source files.
 BOOT_SOURCE := src/arch/i386/boot.asm
@@ -64,15 +68,44 @@ $(SERIAL_OBJECT): src/kernel/serial.c include/kernel/serial.h include/arch/i386/
 	mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
+$(IDT_OBJECT): src/arch/i386/idt.c include/arch/i386/idt.h
+	mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(IDT_LOAD_OBJECT): src/arch/i386/idt_load.asm
+	mkdir -p $(BUILD_DIR)
+	$(AS) -f elf32 $< -o $@
+
+$(EXCEPTIONS_OBJECT): src/arch/i386/exceptions.c include/kernel/terminal.h include/kernel/serial.h
+	mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(EXCEPTIONS_ASM_OBJECT): src/arch/i386/exceptions.asm
+	mkdir -p $(BUILD_DIR)
+	$(AS) -f elf32 $< -o $@
+
 # Link all objects into the final ELF kernel.
-$(KERNEL_ELF): $(BOOT_OBJECT) $(KERNEL_OBJECT) $(TERMINAL_OBJECT) $(SERIAL_OBJECT) $(LINKER_SCRIPT)
+$(KERNEL_ELF): \
+	$(BOOT_OBJECT) \
+	$(KERNEL_OBJECT) \
+	$(TERMINAL_OBJECT) \
+	$(SERIAL_OBJECT) \
+	$(IDT_OBJECT) \
+	$(IDT_LOAD_OBJECT) \
+	$(EXCEPTIONS_OBJECT) \
+	$(EXCEPTIONS_ASM_OBJECT) \
+	$(LINKER_SCRIPT) 
 	$(LD) \
 		-T $(LINKER_SCRIPT) \
 		-o $@ \
 		$(BOOT_OBJECT) \
 		$(KERNEL_OBJECT) \
 		$(TERMINAL_OBJECT) \
-		$(SERIAL_OBJECT)
+		$(SERIAL_OBJECT) \
+		$(IDT_OBJECT) \
+		$(IDT_LOAD_OBJECT) \
+		$(EXCEPTIONS_OBJECT) \
+		$(EXCEPTIONS_ASM_OBJECT)
 
 # Verify that GRUB recognizes the ELF as a Multiboot kernel.
 check: $(KERNEL_ELF)
