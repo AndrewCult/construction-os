@@ -1,5 +1,3 @@
-[English](README.md) | [Italiano](README.it.md)
-
 # Building an Operating System
 
 An educational operating system built from scratch for the 32-bit x86
@@ -25,7 +23,7 @@ drivers, programs, and package management.
 - Design a simple native package format and package manager.
 - Develop and debug safely in QEMU before testing on real hardware.
 - Explore support for older, resource-constrained computers where practical.
-- Keep the architecture and learning process documented in English and Italian.
+- Keep the architecture and learning process documented as the project evolves.
 
 ## Initial scope
 
@@ -62,9 +60,9 @@ architectural decisions will be documented rather than changed silently.
 
 ## Roadmap
 
-- [ ] Establish and verify the cross-development environment
-- [ ] Boot the first kernel in QEMU
-- [ ] Add VGA text and serial output
+- [x] Establish and verify the cross-development environment
+- [x] Boot the first kernel in QEMU
+- [x] Add VGA text and serial output
 - [ ] Implement CPU exceptions and hardware interrupts
 - [ ] Add a timer and keyboard input
 - [ ] Introduce physical and virtual memory management
@@ -78,22 +76,58 @@ architectural decisions will be documented rather than changed silently.
 The roadmap describes direction, not a fixed release schedule. Each item will
 be divided into small, testable milestones as development progresses.
 
+The current milestone is CPU exception handling. The repository already
+contains the initial IDT infrastructure and a division-error handler; the next
+step is to connect, initialize, and test the complete exception path.
+
+## Build and run
+
+The build requires an `i686-elf` GCC/Binutils cross-toolchain, NASM, GRUB
+utilities (including `grub-file` and `grub-mkrescue`), `xorriso`, GNU Make,
+and QEMU for i386.
+
+From the repository root:
+
+```sh
+make check  # Build the ELF kernel and validate its Multiboot header.
+make iso    # Build build/construction-os.iso.
+make run    # Build the ISO and start it in QEMU.
+make clean  # Remove generated artifacts.
+```
+
+`make` is equivalent to `make iso`. While QEMU is running, VGA output appears
+in its display window and serial diagnostics are written to the terminal that
+started QEMU.
+
+## Repository structure
+
+| Path | Purpose |
+| --- | --- |
+| `src/arch/i386/` | x86 boot, descriptor-table, and exception code |
+| `src/kernel/` | architecture-independent kernel facilities |
+| `include/` | public headers, arranged like the source tree |
+| `grub/` | GRUB configuration used in the bootable image |
+| `experiments/` | small, isolated exercises used during learning |
+| `linker.ld` | kernel memory layout and ELF linking rules |
+| `Makefile` | kernel, ISO, validation, and QEMU build targets |
+
 ## Repository status
 
-The repository currently contains the project foundation and documentation.
-Build instructions will be added with the first bootable kernel so that every
-documented command can be tested and reproduced.
+The repository currently builds a bootable 32-bit Multiboot kernel and ISO.
+GRUB transfers control to an assembly entry point that installs a minimal flat
+GDT, reloads the segment registers, prepares a kernel stack, and calls the C
+kernel. The kernel can write diagnostic messages to the VGA text terminal and
+the serial port.
 
-## Languages and conventions
+Basic IDT loading code and the first exception stub and handler are present,
+but they are still under development and are not yet connected to the kernel
+initialization path.
 
-Documentation is available in English and Italian. English is the canonical
-language if translations temporarily differ.
+## Conventions
 
 - Source code, identifiers, comments, logs, and error messages use English.
 - Commit messages, issue titles, and technical terminology use English.
-- English documentation lives in `README.md` and, later, `docs/en/`.
-- Italian documentation lives in `README.it.md` and, later, `docs/it/`.
-- Corresponding documents should preserve the same structure in both languages.
+- Project documentation uses English and will later be expanded under `docs/`.
 
 ## Contributing
 
