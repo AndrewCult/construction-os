@@ -58,6 +58,11 @@ scope.
 These choices may evolve as the project exposes new requirements. Important
 architectural decisions will be documented rather than changed silently.
 
+## Architecture documentation
+
+For a description of the current boot flow, subsystem responsibilities, and
+exception-handling path, see [Architecture](docs/architecture.md).
+
 ## Roadmap
 
 - [x] Establish and verify the cross-development environment
@@ -108,6 +113,7 @@ started QEMU.
 | `include/` | public headers, arranged like the source tree |
 | `grub/` | GRUB configuration used in the bootable image |
 | `experiments/` | small, isolated exercises used during learning |
+| `docs/` | Current architecture and execution flow |
 | `linker.ld` | kernel memory layout and ELF linking rules |
 | `Makefile` | kernel, ISO, validation, and QEMU build targets |
 
