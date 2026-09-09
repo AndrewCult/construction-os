@@ -63,6 +63,10 @@ extern kernel_main
 _start:
     cli
 
+    ; Preserve the values provided by the Multiboot bootloader.
+    mov esi, eax            ; Multiboot magic value.
+    mov edi, ebx            ; Address of the Multiboot information structure.
+
     lgdt [gdt_descriptor]
 
     jmp CODE_SELECTOR:.reload_cs
@@ -76,6 +80,11 @@ _start:
     mov ss, ax
 
     mov esp, stack_top        ; The x86 stack grows toward lower addresses.
+
+    ; Keep the stack aligned according to the i386 System V ABI.
+    sub esp, 8
+    push edi                   ; Second argument: Multiboot information address.
+    push esi                   ; First argument: Multiboot magic value.
 
     call kernel_main          ; Continue initialization in C.
 
