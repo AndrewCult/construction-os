@@ -56,7 +56,7 @@ $(BOOT_OBJECT): $(BOOT_SOURCE)
 	$(AS) -f elf32 $< -o $@
 
 # Compile the freestanding C kernel.
-$(KERNEL_OBJECT): $(KERNEL_SOURCE) include/kernel/terminal.h
+$(KERNEL_OBJECT): $(KERNEL_SOURCE) include/kernel/terminal.h include/boot/multiboot.h
 	mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 

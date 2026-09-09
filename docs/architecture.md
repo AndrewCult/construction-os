@@ -17,12 +17,37 @@ exception.
 The current boot sequence is:
 
 1. GRUB loads the kernel through the Multiboot interface.
-2. `_start` installs the Global Descriptor Table.
-3. The assembly entry point initializes the kernel stack.
-4. Control is transferred to `kernel_main()`.
-5. The kernel initializes VGA text output and the serial port.
-6. The Interrupt Descriptor Table is constructed and loaded.
-7. The kernel enters its normal execution state.
+2. `_start` preserves the Multiboot magic value and information address.
+3. `_start` installs the Global Descriptor Table.
+4. The assembly entry point initializes and aligns the kernel stack.
+5. The Multiboot values are passed to `kernel_main()`.
+6. The kernel initializes VGA text output and the serial port.
+7. The kernel validates the Multiboot handoff and reads the available basic
+   memory information.
+8. The Interrupt Descriptor Table is constructed and loaded.
+9. The kernel enters its normal execution state.
+
+## Multiboot handoff
+
+When GRUB transfers control to `_start`, it provides two values through CPU
+registers:
+
+- `EAX` contains the Multiboot bootloader magic value;
+- `EBX` contains the physical address of the Multiboot information structure.
+
+The assembly entry point preserves these values before reloading the segment
+registers. After preparing the kernel stack, it passes them to `kernel_main()`
+using the i386 C calling convention.
+
+The kernel validates the magic value before interpreting the information
+structure. It then checks bit 0 of the Multiboot `flags` field. When this bit is
+set, `mem_lower` and `mem_upper` contain valid basic memory information,
+expressed in kibibytes.
+
+These two values provide only a summary of available memory. They are useful
+for validating the bootloader handoff, but they are not sufficient for physical
+memory allocation because they do not describe reserved regions or holes. The
+kernel will use the detailed Multiboot memory map for that purpose.
 
 ## Global Descriptor Table
 

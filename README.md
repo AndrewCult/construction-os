@@ -74,6 +74,7 @@ exception-handling path, see [Architecture](docs/architecture.md).
 - [ ] Add processes, user mode, and system calls
 - [ ] Implement storage and a minimal filesystem
 - [ ] Build a shell and load user programs
+- [ ] Add a network stack and a minimal text-mode network client
 - [ ] Design the package format and package manager
 - [ ] Test on selected legacy hardware
 - [ ] Explore a text UI and, later, a graphical window system
@@ -81,9 +82,11 @@ exception-handling path, see [Architecture](docs/architecture.md).
 The roadmap describes direction, not a fixed release schedule. Each item will
 be divided into small, testable milestones as development progresses.
 
-The current milestone is CPU exception handling. The repository already
-contains the initial IDT infrastructure and a division-error handler; the next
-step is to connect, initialize, and test the complete exception path.
+The current milestone is early boot information and memory discovery. The
+kernel now receives and validates the Multiboot handoff, reads the basic lower
+and upper memory values supplied by GRUB, and reports them through VGA and the
+serial port. The next step is to inspect the detailed Multiboot memory map
+before introducing physical memory allocation.
 
 ## Build and run
 
@@ -120,14 +123,19 @@ started QEMU.
 ## Repository status
 
 The repository currently builds a bootable 32-bit Multiboot kernel and ISO.
-GRUB transfers control to an assembly entry point that installs a minimal flat
-GDT, reloads the segment registers, prepares a kernel stack, and calls the C
-kernel. The kernel can write diagnostic messages to the VGA text terminal and
-the serial port.
+GRUB transfers control to an assembly entry point that preserves the Multiboot
+magic value and information address, installs a minimal flat GDT, reloads the
+segment registers, prepares an aligned kernel stack, and passes the Multiboot
+values to the C kernel.
 
-Basic IDT loading code and the first exception stub and handler are present,
-but they are still under development and are not yet connected to the kernel
-initialization path.
+The kernel provides VGA and serial diagnostic output, loads an IDT, and handles
+the division-error exception. The complete division-error path has been tested
+with both a software interrupt and a real division by zero.
+
+During startup, the kernel validates the Multiboot magic value and reads the
+basic lower and upper memory information when GRUB marks those fields as
+available. Detailed memory-map parsing and physical memory management are not
+implemented yet.
 
 ## Conventions
 
