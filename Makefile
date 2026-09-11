@@ -24,6 +24,7 @@ IDT_OBJECT := $(BUILD_DIR)/idt.o
 IDT_LOAD_OBJECT := $(BUILD_DIR)/idt_load.o
 EXCEPTIONS_OBJECT := $(BUILD_DIR)/exceptions.o
 EXCEPTIONS_ASM_OBJECT := $(BUILD_DIR)/exceptions_asm.o
+PIC_OBJECT := $(BUILD_DIR)/pic.o
 
 # Source files.
 BOOT_SOURCE := src/arch/i386/boot.asm
@@ -56,7 +57,7 @@ $(BOOT_OBJECT): $(BOOT_SOURCE)
 	$(AS) -f elf32 $< -o $@
 
 # Compile the freestanding C kernel.
-$(KERNEL_OBJECT): $(KERNEL_SOURCE) include/kernel/terminal.h include/boot/multiboot.h
+$(KERNEL_OBJECT): $(KERNEL_SOURCE) include/kernel/terminal.h include/boot/multiboot.h include/arch/i386/pic.h
 	mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
@@ -69,6 +70,10 @@ $(SERIAL_OBJECT): src/kernel/serial.c include/kernel/serial.h include/arch/i386/
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(IDT_OBJECT): src/arch/i386/idt.c include/arch/i386/idt.h
+	mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
+$(PIC_OBJECT): src/arch/i386/pic.c include/arch/i386/pic.h include/arch/i386/io.h
 	mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
@@ -91,6 +96,7 @@ $(KERNEL_ELF): \
 	$(TERMINAL_OBJECT) \
 	$(SERIAL_OBJECT) \
 	$(IDT_OBJECT) \
+	$(PIC_OBJECT) \
 	$(IDT_LOAD_OBJECT) \
 	$(EXCEPTIONS_OBJECT) \
 	$(EXCEPTIONS_ASM_OBJECT) \
@@ -103,6 +109,7 @@ $(KERNEL_ELF): \
 		$(TERMINAL_OBJECT) \
 		$(SERIAL_OBJECT) \
 		$(IDT_OBJECT) \
+		$(PIC_OBJECT) \
 		$(IDT_LOAD_OBJECT) \
 		$(EXCEPTIONS_OBJECT) \
 		$(EXCEPTIONS_ASM_OBJECT)

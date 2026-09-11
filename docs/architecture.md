@@ -8,9 +8,10 @@ behind the main design decisions.
 
 The kernel currently targets the 32-bit x86 architecture and is loaded by a
 Multiboot-compatible bootloader. It runs in protected mode and provides basic
-VGA text output, serial diagnostics, a Global Descriptor Table, and an
+VGA text output, serial diagnostics, a Global Descriptor Table, an
 Interrupt Descriptor Table with initial support for the division-error
-exception.
+exception, and remapped 8259 PIC controllers with all hardware IRQ lines
+initially masked.
 
 ## Boot flow
 
@@ -25,7 +26,8 @@ The current boot sequence is:
 7. The kernel validates the Multiboot handoff and reads the available basic
    memory information.
 8. The Interrupt Descriptor Table is constructed and loaded.
-9. The kernel enters its normal execution state.
+9. The 8259 PIC controllers are remapped to IDT vectors 32-47, with every hardware IRQ line initially masked.
+10. The kernel enters its normal execution state.
 
 ## Multiboot handoff
 
@@ -80,6 +82,25 @@ Each IDT entry stores the 32-bit handler address in two 16-bit fields,
 `offset_low` and `offset_high`. It also contains the kernel code-segment
 selector and the attributes that identify the entry as a present,
 kernel-level 32-bit interrupt gate.
+
+## Programmable Interrupt Controller
+
+The system uses the two cascaded 8259 Programmable Interrupt Controllers
+provided by the legacy i386 platform. The master handles IRQ0–IRQ7, while the
+slave handles IRQ8–IRQ15 and reaches the CPU through IRQ2 on the master.
+
+During initialization, `pic_initialize()`:
+
+1. masks every hardware IRQ line;
+2. remaps the master PIC to IDT vectors 32–39;
+3. remaps the slave PIC to IDT vectors 40–47;
+4. configures the cascade connection through IRQ2;
+5. selects 8086-compatible operation;
+6. leaves every IRQ masked until a corresponding IDT handler is installed.
+
+The PIC module also provides operations to mask or unmask an individual IRQ
+line and to send an End of Interrupt notification after an IRQ has been
+handled. CPU interrupts remain globally disabled at the current stage.
 
 ## Division-error exception
 

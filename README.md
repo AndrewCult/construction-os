@@ -43,17 +43,17 @@ scope.
 
 ## Planned toolchain
 
-| Component | Planned choice |
-| --- | --- |
-| Main language | C17, freestanding subset |
-| Low-level code | x86 assembly with NASM |
-| Target | `i686-elf` |
+| Component                 | Planned choice                      |
+| ------------------------- | ----------------------------------- |
+| Main language             | C17, freestanding subset            |
+| Low-level code            | x86 assembly with NASM              |
+| Target                    | `i686-elf`                          |
 | Compiler and binary tools | GCC cross-compiler and GNU Binutils |
-| Build system | GNU Make |
-| Bootloader | GRUB with Multiboot |
-| Kernel format | ELF |
-| Emulator | QEMU |
-| Debugger | GDB |
+| Build system              | GNU Make                            |
+| Bootloader                | GRUB with Multiboot                 |
+| Kernel format             | ELF                                 |
+| Emulator                  | QEMU                                |
+| Debugger                  | GDB                                 |
 
 These choices may evolve as the project exposes new requirements. Important
 architectural decisions will be documented rather than changed silently.
@@ -82,11 +82,10 @@ exception-handling path, see [Architecture](docs/architecture.md).
 The roadmap describes direction, not a fixed release schedule. Each item will
 be divided into small, testable milestones as development progresses.
 
-The current milestone is early boot information and memory discovery. The
-kernel now receives and validates the Multiboot handoff, reads the basic lower
-and upper memory values supplied by GRUB, and reports them through VGA and the
-serial port. The next step is to inspect the detailed Multiboot memory map
-before introducing physical memory allocation.
+The current milestone is the hardware-interrupt foundation. The kernel loads
+an initial IDT and remaps the two 8259 PIC controllers to vectors 32–47 while
+keeping every IRQ line masked. The next step is to install the IRQ0 handler
+and configure the PIT without enabling unrelated hardware interrupts.
 
 ## Build and run
 
@@ -109,16 +108,16 @@ started QEMU.
 
 ## Repository structure
 
-| Path | Purpose |
-| --- | --- |
-| `src/arch/i386/` | x86 boot, descriptor-table, and exception code |
-| `src/kernel/` | architecture-independent kernel facilities |
-| `include/` | public headers, arranged like the source tree |
-| `grub/` | GRUB configuration used in the bootable image |
-| `experiments/` | small, isolated exercises used during learning |
-| `docs/` | Current architecture and execution flow |
-| `linker.ld` | kernel memory layout and ELF linking rules |
-| `Makefile` | kernel, ISO, validation, and QEMU build targets |
+| Path             | Purpose                                         |
+| ---------------- | ----------------------------------------------- |
+| `src/arch/i386/` | x86 boot, descriptor-table, and exception code  |
+| `src/kernel/`    | architecture-independent kernel facilities      |
+| `include/`       | public headers, arranged like the source tree   |
+| `grub/`          | GRUB configuration used in the bootable image   |
+| `experiments/`   | small, isolated exercises used during learning  |
+| `docs/`          | Current architecture and execution flow         |
+| `linker.ld`      | kernel memory layout and ELF linking rules      |
+| `Makefile`       | kernel, ISO, validation, and QEMU build targets |
 
 ## Repository status
 
@@ -131,6 +130,10 @@ values to the C kernel.
 The kernel provides VGA and serial diagnostic output, loads an IDT, and handles
 the division-error exception. The complete division-error path has been tested
 with both a software interrupt and a real division by zero.
+
+The two 8259 PIC controllers are initialized during kernel startup and remapped
+away from the CPU exception range. All IRQ lines remain masked until their
+handlers are installed and tested individually.
 
 During startup, the kernel validates the Multiboot magic value and reads the
 basic lower and upper memory information when GRUB marks those fields as
