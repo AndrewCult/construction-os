@@ -68,7 +68,8 @@ exception-handling path, see [Architecture](docs/architecture.md).
 - [x] Establish and verify the cross-development environment
 - [x] Boot the first kernel in QEMU
 - [x] Add VGA text and serial output
-- [ ] Implement CPU exceptions and hardware interrupts
+- [x] Implement CPU exception handling
+- [ ] Implement hardware interrupts
 - [ ] Add a timer and keyboard input
 - [ ] Introduce physical and virtual memory management
 - [ ] Add processes, user mode, and system calls
@@ -82,10 +83,11 @@ exception-handling path, see [Architecture](docs/architecture.md).
 The roadmap describes direction, not a fixed release schedule. Each item will
 be divided into small, testable milestones as development progresses.
 
-The current milestone is the hardware-interrupt foundation. The kernel loads
-an initial IDT and remaps the two 8259 PIC controllers to vectors 32–47 while
-keeping every IRQ line masked. The next step is to install the IRQ0 handler
-and configure the PIT without enabling unrelated hardware interrupts.
+CPU exception handling is now implemented for all 32 architecture-reserved
+vectors. The current milestone is the hardware-interrupt foundation. The
+kernel remaps the two 8259 PIC controllers to vectors 32–47 while keeping
+every IRQ line masked. The next step is to install the IRQ0 handler and
+configure the PIT without enabling unrelated hardware interrupts.
 
 ## Build and run
 
@@ -127,9 +129,15 @@ magic value and information address, installs a minimal flat GDT, reloads the
 segment registers, prepares an aligned kernel stack, and passes the Multiboot
 values to the C kernel.
 
-The kernel provides VGA and serial diagnostic output, loads an IDT, and handles
-the division-error exception. The complete division-error path has been tested
-with both a software interrupt and a real division by zero.
+The kernel provides VGA and serial diagnostic output and installs IDT entries
+for all 32 CPU exception vectors. Assembly entry stubs normalize the stack
+layout for exceptions with and without a CPU-provided error code, allowing a
+shared C handler to report the exception name, vector, error code, and
+instruction pointer before halting the processor safely.
+
+The exception path has been verified with an Invalid Opcode exception (`#UD`)
+without a CPU-provided error code and a General Protection Fault (`#GP`) with
+a CPU-provided error code.
 
 The two 8259 PIC controllers are initialized during kernel startup and remapped
 away from the CPU exception range. All IRQ lines remain masked until their

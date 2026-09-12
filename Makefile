@@ -69,7 +69,7 @@ $(SERIAL_OBJECT): src/kernel/serial.c include/kernel/serial.h include/arch/i386/
 	mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(IDT_OBJECT): src/arch/i386/idt.c include/arch/i386/idt.h
+$(IDT_OBJECT): src/arch/i386/idt.c include/arch/i386/idt.h include/arch/i386/exceptions.h
 	mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
@@ -81,7 +81,7 @@ $(IDT_LOAD_OBJECT): src/arch/i386/idt_load.asm
 	mkdir -p $(BUILD_DIR)
 	$(AS) -f elf32 $< -o $@
 
-$(EXCEPTIONS_OBJECT): src/arch/i386/exceptions.c include/kernel/terminal.h include/kernel/serial.h
+$(EXCEPTIONS_OBJECT): src/arch/i386/exceptions.c include/arch/i386/exceptions.h include/kernel/terminal.h include/kernel/serial.h
 	mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
@@ -100,7 +100,7 @@ $(KERNEL_ELF): \
 	$(IDT_LOAD_OBJECT) \
 	$(EXCEPTIONS_OBJECT) \
 	$(EXCEPTIONS_ASM_OBJECT) \
-	$(LINKER_SCRIPT) 
+	$(LINKER_SCRIPT)
 	$(LD) \
 		-T $(LINKER_SCRIPT) \
 		-o $@ \

@@ -8,10 +8,9 @@ behind the main design decisions.
 
 The kernel currently targets the 32-bit x86 architecture and is loaded by a
 Multiboot-compatible bootloader. It runs in protected mode and provides basic
-VGA text output, serial diagnostics, a Global Descriptor Table, an
-Interrupt Descriptor Table with initial support for the division-error
-exception, and remapped 8259 PIC controllers with all hardware IRQ lines
-initially masked.
+VGA text output, serial diagnostics, a Global Descriptor Table, an Interrupt
+Descriptor Table covering all 32 CPU exception vectors, and remapped 8259 PIC
+controllers with all hardware IRQ lines initially masked.
 
 ## Boot flow
 
@@ -25,8 +24,10 @@ The current boot sequence is:
 6. The kernel initializes VGA text output and the serial port.
 7. The kernel validates the Multiboot handoff and reads the available basic
    memory information.
-8. The Interrupt Descriptor Table is constructed and loaded.
-9. The 8259 PIC controllers are remapped to IDT vectors 32-47, with every hardware IRQ line initially masked.
+8. The Interrupt Descriptor Table is populated with the 32 CPU exception
+   entry points and loaded.
+9. The 8259 PIC controllers are remapped to IDT vectors 32–47, with every
+   hardware IRQ line initially masked.
 10. The kernel enters its normal execution state.
 
 ## Multiboot handoff
@@ -74,14 +75,17 @@ points.
 During initialization, `idt_initialize()`:
 
 1. prepares the IDT descriptor;
-2. configures vector `0` with `idt_set_gate()`;
-3. associates it with `isr_divide_error`;
+2. installs the assembly entry points for CPU exception vectors 0–31;
+3. configures each entry as a present, ring-0, 32-bit interrupt gate;
 4. loads the table into the CPU with the `lidt` instruction.
 
-Each IDT entry stores the 32-bit handler address in two 16-bit fields,
-`offset_low` and `offset_high`. It also contains the kernel code-segment
-selector and the attributes that identify the entry as a present,
-kernel-level 32-bit interrupt gate.
+The assembly entry points are stored in `exception_stub_table`. The table
+allows the C initialization code to associate each exception vector with its
+corresponding stub without declaring and installing every entry separately.
+
+Each IDT entry divides the 32-bit entry-point address between the 16-bit
+`offset_low` and `offset_high` fields. It also contains the kernel code-segment
+selector and the attributes that describe the interrupt gate.
 
 ## Programmable Interrupt Controller
 
@@ -102,22 +106,42 @@ The PIC module also provides operations to mask or unmask an individual IRQ
 line and to send an End of Interrupt notification after an IRQ has been
 handled. CPU interrupts remain globally disabled at the current stage.
 
-## Division-error exception
+## CPU exceptions
 
-The CPU raises the division-error exception (`#DE`, vector `0`) when a division
-uses a zero divisor or produces a result that cannot fit in the destination.
+The first 32 IDT vectors are reserved by the x86 architecture for CPU
+exceptions. Each vector is associated with a small assembly entry stub before
+execution reaches the shared C handler.
 
-The current handling path is:
+The processor automatically pushes the interrupted instruction pointer, code
+segment, and flags. For some exceptions in the baseline i686 architecture, it
+also pushes an error code. These exceptions use vectors 8, 10, 11, 12, 13, 14,
+and 17.
 
-1. the CPU obtains the entry point from IDT vector `0`;
-2. `isr_divide_error` disables interrupts and saves the general-purpose
-   registers;
-3. the assembly stub calls `exception_divide_error_handler()`;
-4. the C handler reports the exception through VGA and the serial port;
-5. the CPU is halted deliberately because execution cannot yet resume safely.
+The exception entry stubs normalize the two possible stack layouts:
 
-The complete path has been verified both with a software invocation of vector
-`0` and with a real `div` instruction using a zero divisor.
+- when the CPU does not provide an error code, the stub pushes a synthetic
+  zero;
+- when the CPU provides an error code, the stub preserves that value;
+- every stub pushes its exception vector;
+- the common assembly entry point saves the general-purpose registers and
+  passes the resulting `exception_frame` to C.
+
+This convention gives `exception_handler()` a uniform representation of every
+exception. The handler reports the exception name, vector, error code, and
+instruction pointer through both VGA and the serial port.
+
+Exception recovery is not implemented yet. After reporting an exception, the
+handler disables interrupts and deliberately halts the processor so that a
+fatal fault cannot continue with potentially corrupted state.
+
+The common path has been tested with:
+
+- an Invalid Opcode exception (`#UD`, vector 6), using the `UD2` instruction
+  and a synthetic zero error code;
+- a General Protection Fault (`#GP`, vector 13), produced by loading a
+  nonexistent GDT selector and carrying a CPU-provided error code.
+
+The earlier division-error path was also tested with a real division by zero.
 
 ## Diagnostic output
 

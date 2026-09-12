@@ -1,4 +1,5 @@
 #include "arch/i386/idt.h"
+#include "arch/i386/exceptions.h"
 
 /* An x86 IDT contains 256 entries. */
 #define IDT_ENTRY_COUNT 256u
@@ -30,7 +31,11 @@ static struct idt_pointer idt_descriptor;
 
 /* Implemented in src/arch/i386/idt_load.asm. */
 extern void idt_load(const struct idt_pointer *descriptor);
-extern void isr_divide_error(void);
+
+/*
+ * Table of exception entry points defined in exceptions.asm.
+ */
+extern void (*const exception_stub_table[CPU_EXCEPTION_COUNT])(void);
 
 /* Configure an IDT interrupt gate for the specified vector and handler. */
 static void idt_set_gate(unsigned char vector, void (*handler)(void)) {
@@ -47,7 +52,12 @@ void idt_initialize(void) {
   idt_descriptor.limit = (unsigned short)(sizeof(idt_entries) - 1u);
   idt_descriptor.base = (unsigned int)idt_entries;
 
-  idt_set_gate(0, isr_divide_error);
+  /*
+   * Install the assembly entry point for every CPU exception vector.
+   */
+  for (unsigned int vector = 0u; vector < CPU_EXCEPTION_COUNT; ++vector) {
+    idt_set_gate((unsigned char)vector, exception_stub_table[vector]);
+  }
 
   idt_load(&idt_descriptor);
 }
