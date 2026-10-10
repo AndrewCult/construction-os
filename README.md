@@ -1,5 +1,7 @@
 # Building an Operating System
 
+[![CI](https://github.com/AndrewCult/construction-os/actions/workflows/ci.yml/badge.svg)](https://github.com/AndrewCult/construction-os/actions/workflows/ci.yml)
+
 An educational operating system built from scratch for the 32-bit x86
 architecture. The project begins with a small text-based system and aims to
 grow, step by step, toward a lightweight retro-style graphical environment.
@@ -101,8 +103,12 @@ From the repository root:
 make check  # Build the ELF kernel and validate its Multiboot header.
 make iso    # Build build/construction-os.iso.
 make run    # Build the ISO and start it in QEMU.
+make test   # Boot the ISO in a headless QEMU and check the serial output.
 make clean  # Remove generated artifacts.
 ```
+
+Header dependencies are generated automatically by the compiler, so editing a
+header rebuilds every object that includes it.
 
 `make` is equivalent to `make iso`. While QEMU is running, VGA output appears
 in its display window and serial diagnostics are written to the terminal that
@@ -118,6 +124,8 @@ started QEMU.
 | `grub/`          | GRUB configuration used in the bootable image   |
 | `experiments/`   | small, isolated exercises used during learning  |
 | `docs/`          | Current architecture and execution flow         |
+| `scripts/`       | Helper scripts, such as the QEMU boot test      |
+| `.github/`       | Continuous-integration workflow                 |
 | `linker.ld`      | kernel memory layout and ELF linking rules      |
 | `Makefile`       | kernel, ISO, validation, and QEMU build targets |
 
@@ -147,6 +155,15 @@ During startup, the kernel validates the Multiboot magic value and reads the
 basic lower and upper memory information when GRUB marks those fields as
 available. Detailed memory-map parsing and physical memory management are not
 implemented yet.
+
+## Continuous integration
+
+Every push and pull request runs a GitHub Actions workflow that builds the
+kernel with warnings treated as errors, validates the Multiboot header, builds
+the ISO, and boots it in a headless QEMU. The boot test passes only if the
+kernel prints its startup message on the serial port; a CPU exception, a boot
+error, or a hang fails the run. The ISO and the serial log of each run are kept
+as downloadable artifacts.
 
 ## Conventions
 

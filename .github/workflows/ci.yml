@@ -1,0 +1,56 @@
+# Builds the kernel with warnings as errors, creates the bootable ISO and boots
+# it in a headless QEMU, checking the serial output. Runs on every push and PR.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-boot:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build tools and QEMU
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nasm grub-pc-bin grub-common xorriso mtools qemu-system-x86
+
+      # Prebuilt i686-elf GCC + Binutils: avoids compiling the cross-compiler (30+ min)
+      - name: Install the i686-elf cross toolchain (Homebrew)
+        run: |
+          eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+          brew install i686-elf-gcc
+          echo "$(brew --prefix)/bin" >> "$GITHUB_PATH"
+
+      - name: Show tool versions
+        run: |
+          i686-elf-gcc --version | head -n 1
+          i686-elf-ld --version | head -n 1
+          nasm -v
+          qemu-system-i386 --version | head -n 1
+
+      - name: Build and validate the kernel (warnings are errors)
+        run: make check EXTRA_CFLAGS=-Werror
+
+      - name: Build the bootable ISO
+        run: make iso
+
+      - name: Boot test in QEMU
+        run: make test
+
+      # Keep the ISO and the serial log of every run, also when it fails
+      - name: Upload ISO and serial log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: construction-os-${{ github.sha }}
+          path: |
+            build/construction-os.iso
+            build/serial.log
+          if-no-files-found: ignore
