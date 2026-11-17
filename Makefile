@@ -22,6 +22,7 @@ TERMINAL_OBJECT := $(BUILD_DIR)/terminal.o
 SERIAL_OBJECT := $(BUILD_DIR)/serial.o
 IDT_OBJECT := $(BUILD_DIR)/idt.o
 IDT_LOAD_OBJECT := $(BUILD_DIR)/idt_load.o
+IRQ_ASM_OBJECT := $(BUILD_DIR)/irq_asm.o
 EXCEPTIONS_OBJECT := $(BUILD_DIR)/exceptions.o
 EXCEPTIONS_ASM_OBJECT := $(BUILD_DIR)/exceptions_asm.o
 PIC_OBJECT := $(BUILD_DIR)/pic.o
@@ -87,6 +88,10 @@ $(IDT_LOAD_OBJECT): src/arch/i386/idt_load.asm
 	mkdir -p $(BUILD_DIR)
 	$(AS) -f elf32 $< -o $@
 
+$(IRQ_ASM_OBJECT): src/arch/i386/irq.asm
+	mkdir -p $(BUILD_DIR)
+	$(AS) -f elf32 $< -o $@
+
 $(EXCEPTIONS_OBJECT): src/arch/i386/exceptions.c
 	mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
@@ -104,6 +109,7 @@ $(KERNEL_ELF): \
 	$(IDT_OBJECT) \
 	$(PIC_OBJECT) \
 	$(IDT_LOAD_OBJECT) \
+	$(IRQ_ASM_OBJECT) \
 	$(EXCEPTIONS_OBJECT) \
 	$(EXCEPTIONS_ASM_OBJECT) \
 	$(LINKER_SCRIPT)
@@ -117,6 +123,7 @@ $(KERNEL_ELF): \
 		$(IDT_OBJECT) \
 		$(PIC_OBJECT) \
 		$(IDT_LOAD_OBJECT) \
+		$(IRQ_ASM_OBJECT) \
 		$(EXCEPTIONS_OBJECT) \
 		$(EXCEPTIONS_ASM_OBJECT)
 

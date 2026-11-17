@@ -40,6 +40,8 @@ static void write_uint32_decimal(uint32_t value) {
   serial_write(digits);
 }
 
+void irq0_handler(void) { serial_write("IRQ0 test: handler C\n"); }
+
 void kernel_main(unsigned int multiboot_magic,
                  unsigned int multiboot_info_address) {
   terminal_initialize();
@@ -83,6 +85,10 @@ void kernel_main(unsigned int multiboot_magic,
 
   idt_initialize();
   pic_initialize();
+
+  serial_write("IRQ0 test: prima di INT\n");
+  __asm__ volatile("int $0x20" ::: "memory");
+  serial_write("IRQ0 test: ritornato al kernel\n");
 
   terminal_write("Hello from construction-os!\n");
   terminal_write("The kernel is running in 32-bit protected mode.\n");

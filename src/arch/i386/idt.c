@@ -1,8 +1,11 @@
 #include "arch/i386/idt.h"
 #include "arch/i386/exceptions.h"
+#include "arch/i386/pic.h"
 
 /* An x86 IDT contains 256 entries. */
 #define IDT_ENTRY_COUNT 256u
+
+extern void irq0_stub(void);
 
 /*
  * One entry in the 32-bit x86 Interrupt Descriptor Table.
@@ -58,6 +61,8 @@ void idt_initialize(void) {
   for (unsigned int vector = 0u; vector < CPU_EXCEPTION_COUNT; ++vector) {
     idt_set_gate((unsigned char)vector, exception_stub_table[vector]);
   }
+
+  idt_set_gate(PIC_MASTER_VECTOR_OFFSET, irq0_stub);
 
   idt_load(&idt_descriptor);
 }
