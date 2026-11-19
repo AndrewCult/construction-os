@@ -26,6 +26,7 @@ IRQ_ASM_OBJECT := $(BUILD_DIR)/irq_asm.o
 EXCEPTIONS_OBJECT := $(BUILD_DIR)/exceptions.o
 EXCEPTIONS_ASM_OBJECT := $(BUILD_DIR)/exceptions_asm.o
 PIC_OBJECT := $(BUILD_DIR)/pic.o
+PIT_OBJECT := $(BUILD_DIR)/pit.o
 
 # Source files.
 BOOT_SOURCE := src/arch/i386/boot.asm
@@ -84,6 +85,10 @@ $(PIC_OBJECT): src/arch/i386/pic.c
 	mkdir -p $(BUILD_DIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
+$(PIT_OBJECT): src/arch/i386/pit.c
+	mkdir -p $(BUILD_DIR)
+	$(CC) $(CFLAGS) -c $< -o $@
+
 $(IDT_LOAD_OBJECT): src/arch/i386/idt_load.asm
 	mkdir -p $(BUILD_DIR)
 	$(AS) -f elf32 $< -o $@
@@ -108,6 +113,7 @@ $(KERNEL_ELF): \
 	$(SERIAL_OBJECT) \
 	$(IDT_OBJECT) \
 	$(PIC_OBJECT) \
+	$(PIT_OBJECT) \
 	$(IDT_LOAD_OBJECT) \
 	$(IRQ_ASM_OBJECT) \
 	$(EXCEPTIONS_OBJECT) \
@@ -122,6 +128,7 @@ $(KERNEL_ELF): \
 		$(SERIAL_OBJECT) \
 		$(IDT_OBJECT) \
 		$(PIC_OBJECT) \
+		$(PIT_OBJECT) \
 		$(IDT_LOAD_OBJECT) \
 		$(IRQ_ASM_OBJECT) \
 		$(EXCEPTIONS_OBJECT) \

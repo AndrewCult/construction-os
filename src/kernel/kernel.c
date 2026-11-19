@@ -1,5 +1,6 @@
 #include "arch/i386/idt.h"
 #include "arch/i386/pic.h"
+#include "arch/i386/pit.h"
 #include "boot/multiboot.h"
 #include "kernel/serial.h"
 #include "kernel/terminal.h"
@@ -40,7 +41,12 @@ static void write_uint32_decimal(uint32_t value) {
   serial_write(digits);
 }
 
-void irq0_handler(void) { serial_write("IRQ0 test: handler C\n"); }
+static volatile uint32_t timer_ticks;
+
+void irq0_handler(void) {
+  ++timer_ticks;
+  pic_send_eoi(0u);
+}
 
 void kernel_main(unsigned int multiboot_magic,
                  unsigned int multiboot_info_address) {
@@ -86,9 +92,16 @@ void kernel_main(unsigned int multiboot_magic,
   idt_initialize();
   pic_initialize();
 
-  serial_write("IRQ0 test: prima di INT\n");
-  __asm__ volatile("int $0x20" ::: "memory");
-  serial_write("IRQ0 test: ritornato al kernel\n");
+  pit_initialize();
+  serial_write("PIT: waiting for IRQ0 ticks\n");
+  pic_unmask_irq(0u);
+
+  while (timer_ticks < 2u) {
+    __asm__ volatile("sti\n\thlt\n\tcli" ::: "memory");
+  }
+
+  pic_mask_irq(0u);
+  serial_write("PIT: received at least two IRQ0 ticks\n");
 
   terminal_write("Hello from construction-os!\n");
   terminal_write("The kernel is running in 32-bit protected mode.\n");
