@@ -72,7 +72,7 @@ exception and timer interrupt handling, see [Architecture](docs/architecture.md)
 - [x] Add VGA text and serial output
 - [x] Implement CPU exception handling
 - [x] Receive PIT interrupts on IRQ0 during boot
-- [ ] Keep the timer running after boot
+- [x] Keep the timer running after boot
 - [ ] Add keyboard input
 - [ ] Introduce physical and virtual memory management
 - [ ] Add processes, user mode, and system calls
@@ -143,14 +143,16 @@ without a CPU-provided error code and a General Protection Fault (`#GP`) with
 a CPU-provided error code.
 
 At boot the kernel programs the PIT for approximately 100 Hz and unmasks IRQ0,
-the timer line on the master PIC. After receiving at least two ticks, it masks
-IRQ0 again and continues startup. A successful QEMU run shows these lines on
-the serial port in order.
+the timer line on the master PIC. After confirming two ticks, the kernel prints
+its startup messages and records the tick count. It reports once when at least
+100 more ticks have arrived and continues to sleep between interrupts. Look
+for these lines in order on the serial port.
 
 ```text
 PIT: waiting for IRQ0 ticks
 PIT: received at least two IRQ0 ticks
 Hello from construction-os!
+PIT: 100 ticks after boot
 ```
 
 During startup, the kernel validates the Multiboot magic value and reads the
@@ -162,11 +164,10 @@ implemented yet.
 
 Every push and pull request runs a GitHub Actions workflow that builds the
 kernel with warnings treated as errors, validates the Multiboot header, builds
-the ISO, and boots it in a headless QEMU. The smoke test looks for
-`Hello from construction-os!` on the serial port. The kernel prints this
-message after the IRQ0 check, so a stall while waiting for ticks causes a
-timeout. A reported CPU exception or boot error also fails the test. The ISO and the serial log of each run are kept
-as downloadable artifacts.
+the ISO, and boots it in a headless QEMU. The smoke test requires the serial greeting
+followed by `PIT: 100 ticks after boot`. A stall waiting for either message
+causes a timeout. A reported CPU exception or boot error also fails the test.
+The ISO and serial log are available as downloadable artifacts.
 
 ## Conventions
 

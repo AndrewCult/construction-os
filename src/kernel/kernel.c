@@ -100,7 +100,7 @@ void kernel_main(unsigned int multiboot_magic,
     __asm__ volatile("sti\n\thlt\n\tcli" ::: "memory");
   }
 
-  pic_mask_irq(0u);
+  __asm__ volatile("sti" ::: "memory");
   serial_write("PIT: received at least two IRQ0 ticks\n");
 
   terminal_write("Hello from construction-os!\n");
@@ -110,4 +110,14 @@ void kernel_main(unsigned int multiboot_magic,
   serial_write("Hello from construction-os!\n");
   serial_write("The kernel is running in 32-bit protected mode.\n");
   serial_write("Multiboot information received successfully.\n");
+
+  const uint32_t ticks_at_boot = timer_ticks;
+  while (timer_ticks - ticks_at_boot < 100u) {
+    __asm__ volatile("hlt" ::: "memory");
+  }
+  serial_write("PIT: 100 ticks after boot\n");
+
+  for (;;) {
+    __asm__ volatile("hlt");
+  }
 }

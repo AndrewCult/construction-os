@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Boots the ISO in a headless QEMU and checks the serial output.
-# Passes when the kernel prints its startup message; fails on a CPU exception,
-# a boot error, or if nothing happens within the timeout (hang or triple fault).
+# Expect the startup greeting followed by the post-boot timer message.
 set -euo pipefail
 
 ISO="${1:-build/construction-os.iso}"
 LOG="${2:-build/serial.log}"
 TIMEOUT_SECONDS="${TIMEOUT_SECONDS:-20}"
-SUCCESS_MARKER="Hello from construction-os!"
+BOOT_MARKER="Hello from construction-os!"
+TIMER_MARKER="PIT: 100 ticks after boot"
 FAILURE_PATTERN="CPU EXCEPTION|ERROR:"
 
 if [[ ! -f "$ISO" ]]; then
@@ -36,8 +36,12 @@ for ((elapsed = 0; elapsed < TIMEOUT_SECONDS; elapsed++)); do
     cat "$LOG"
     exit 1
   fi
-  if grep -qF "$SUCCESS_MARKER" "$LOG" 2>/dev/null; then
-    echo "PASS: kernel booted in ${elapsed}s. Serial output:"
+  if awk -v boot="$BOOT_MARKER" -v timer="$TIMER_MARKER" '
+    $0 == boot { booted = 1 }
+    booted && $0 == timer { received_ticks = 1 }
+    END { exit !received_ticks }
+  ' "$LOG" 2>/dev/null; then
+    echo "PASS: kernel booted and received 100 more IRQ0 ticks. Serial output:"
     cat "$LOG"
     exit 0
   fi
@@ -46,6 +50,6 @@ for ((elapsed = 0; elapsed < TIMEOUT_SECONDS; elapsed++)); do
   fi
 done
 
-echo "FAIL: startup message not found (timeout or crash). Serial output:"
+echo "FAIL: expected boot and timer messages in order (timeout or crash). Serial output:"
 cat "$LOG" 2>/dev/null || echo "(empty)"
 exit 1

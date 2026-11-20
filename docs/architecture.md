@@ -31,8 +31,9 @@ The current boot sequence is:
    hardware IRQ line initially masked.
 10. The kernel programs PIT channel 0, unmasks IRQ0 and waits for at least
     two timer interrupts.
-11. It masks IRQ0 again, prints the startup messages and returns to the halt
-    loop in `_start` with maskable interrupts disabled.
+11. The kernel enables maskable interrupts, prints the startup messages and
+    records the tick count. After 100 more ticks it prints a serial diagnostic
+    and enters its idle loop with IRQ0 enabled.
 
 ## Multiboot handoff
 
@@ -130,9 +131,13 @@ the master PIC, allowing it to deliver the next tick. The stub restores the
 stack and registers, then returns to the interrupted code with `iretd`.
 
 After waking, the CPU executes `cli` before the loop reads the count again.
-Once the count reaches at least two, the kernel masks IRQ0 and reports success
-on the serial port. Masking IRQ0 ends delivery to the CPU. The PIT itself
-continues to count.
+Once the count reaches at least two, the kernel enables maskable interrupts
+with `sti` and prints its startup messages. It samples `timer_ticks` after the
+final message and uses unsigned subtraction to count ticks since that sample,
+including across a 32-bit counter wrap. While waiting, `hlt` lets the CPU
+sleep until an interrupt arrives. At 100 or more elapsed ticks the kernel
+prints one confirmation, then loops on `hlt` with IRQ0 still unmasked. Each
+new tick wakes the CPU and runs the same handler.
 
 ## CPU exceptions
 
