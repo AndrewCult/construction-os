@@ -63,7 +63,7 @@ architectural decisions will be documented rather than changed silently.
 ## Architecture documentation
 
 For a description of the current boot flow, subsystem responsibilities, and
-exception-handling path, see [Architecture](docs/architecture.md).
+exception and timer interrupt handling, see [Architecture](docs/architecture.md).
 
 ## Roadmap
 
@@ -71,8 +71,9 @@ exception-handling path, see [Architecture](docs/architecture.md).
 - [x] Boot the first kernel in QEMU
 - [x] Add VGA text and serial output
 - [x] Implement CPU exception handling
-- [ ] Implement hardware interrupts
-- [ ] Add a timer and keyboard input
+- [x] Receive PIT interrupts on IRQ0 during boot
+- [ ] Keep the timer running after boot
+- [ ] Add keyboard input
 - [ ] Introduce physical and virtual memory management
 - [ ] Add processes, user mode, and system calls
 - [ ] Implement storage and a minimal filesystem
@@ -84,12 +85,6 @@ exception-handling path, see [Architecture](docs/architecture.md).
 
 The roadmap describes direction, not a fixed release schedule. Each item will
 be divided into small, testable milestones as development progresses.
-
-CPU exception handling is now implemented for all 32 architecture-reserved
-vectors. The current milestone is the hardware-interrupt foundation. The
-kernel remaps the two 8259 PIC controllers to vectors 32–47 while keeping
-every IRQ line masked. The next step is to install the IRQ0 handler and
-configure the PIT without enabling unrelated hardware interrupts.
 
 ## Build and run
 
@@ -118,8 +113,8 @@ started QEMU.
 
 | Path             | Purpose                                         |
 | ---------------- | ----------------------------------------------- |
-| `src/arch/i386/` | x86 boot, descriptor-table, and exception code  |
-| `src/kernel/`    | architecture-independent kernel facilities      |
+| `src/arch/i386/` | x86 boot, descriptor tables, PIC and PIT drivers|
+| `src/kernel/`    | kernel startup, IRQ0 handler, and diagnostics  |
 | `include/`       | public headers, arranged like the source tree   |
 | `grub/`          | GRUB configuration used in the bootable image   |
 | `experiments/`   | small, isolated exercises used during learning  |
@@ -147,9 +142,16 @@ The exception path has been verified with an Invalid Opcode exception (`#UD`)
 without a CPU-provided error code and a General Protection Fault (`#GP`) with
 a CPU-provided error code.
 
-The two 8259 PIC controllers are initialized during kernel startup and remapped
-away from the CPU exception range. All IRQ lines remain masked until their
-handlers are installed and tested individually.
+At boot the kernel programs the PIT for approximately 100 Hz and unmasks IRQ0,
+the timer line on the master PIC. After receiving at least two ticks, it masks
+IRQ0 again and continues startup. A successful QEMU run shows these lines on
+the serial port in order.
+
+```text
+PIT: waiting for IRQ0 ticks
+PIT: received at least two IRQ0 ticks
+Hello from construction-os!
+```
 
 During startup, the kernel validates the Multiboot magic value and reads the
 basic lower and upper memory information when GRUB marks those fields as
@@ -160,9 +162,10 @@ implemented yet.
 
 Every push and pull request runs a GitHub Actions workflow that builds the
 kernel with warnings treated as errors, validates the Multiboot header, builds
-the ISO, and boots it in a headless QEMU. The boot test passes only if the
-kernel prints its startup message on the serial port; a CPU exception, a boot
-error, or a hang fails the run. The ISO and the serial log of each run are kept
+the ISO, and boots it in a headless QEMU. The smoke test looks for
+`Hello from construction-os!` on the serial port. The kernel prints this
+message after the IRQ0 check, so a stall while waiting for ticks causes a
+timeout. A reported CPU exception or boot error also fails the test. The ISO and the serial log of each run are kept
 as downloadable artifacts.
 
 ## Conventions
