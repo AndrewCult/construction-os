@@ -5,6 +5,7 @@
 #include "boot/multiboot.h"
 #include "kernel/serial.h"
 #include "kernel/terminal.h"
+#include <stdbool.h>
 #include <stdint.h>
 
 #define PS2_DATA_PORT 0x60u
@@ -152,6 +153,7 @@ void kernel_main(unsigned int multiboot_magic,
   pic_unmask_irq(1u);
 
   uint32_t reported_drops = 0u;
+  bool extended_pending = false;
 
   for (;;) {
     __asm__ volatile("cli" ::: "memory");
@@ -167,6 +169,18 @@ void kernel_main(unsigned int multiboot_magic,
 
     __asm__ volatile("sti" ::: "memory");
     print_keyboard_byte(byte);
+
+    if (byte == 0xE0u) {
+      extended_pending = true;
+    } else if (extended_pending) {
+      extended_pending = false;
+
+      if (byte == 0x4Du) {
+        serial_write("Keyboard: right arrow pressed\n");
+      } else if (byte == 0xCDu) {
+        serial_write("Keyboard: right arrow released\n");
+      }
+    }
 
     if (drops != reported_drops) {
       const char *message = "Keyboard bytes dropped: ";
