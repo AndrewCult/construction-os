@@ -63,7 +63,7 @@ architectural decisions will be documented rather than changed silently.
 ## Architecture documentation
 
 For a description of the current boot flow, subsystem responsibilities, and
-exception and timer interrupt handling, see [Architecture](docs/architecture.md).
+exception, timer, and keyboard interrupt handling, see [Architecture](docs/architecture.md).
 
 ## Roadmap
 
@@ -73,7 +73,8 @@ exception and timer interrupt handling, see [Architecture](docs/architecture.md)
 - [x] Implement CPU exception handling
 - [x] Receive PIT interrupts on IRQ0 during boot
 - [x] Keep the timer running after boot
-- [ ] Add keyboard input
+- [x] Receive PS/2 keyboard bytes on IRQ1 and decode arrow keys and Num Lock
+- [ ] Translate keyboard events into text input
 - [ ] Introduce physical and virtual memory management
 - [ ] Add processes, user mode, and system calls
 - [ ] Implement storage and a minimal filesystem
@@ -114,7 +115,7 @@ started QEMU.
 | Path             | Purpose                                         |
 | ---------------- | ----------------------------------------------- |
 | `src/arch/i386/` | x86 boot, descriptor tables, PIC and PIT drivers|
-| `src/kernel/`    | kernel startup, IRQ0 handler, and diagnostics  |
+| `src/kernel/`    | kernel startup, IRQ handlers, and keyboard decoding  |
 | `include/`       | public headers, arranged like the source tree   |
 | `grub/`          | GRUB configuration used in the bootable image   |
 | `experiments/`   | small, isolated exercises used during learning  |
@@ -145,7 +146,7 @@ a CPU-provided error code.
 At boot the kernel programs the PIT for approximately 100 Hz and unmasks IRQ0,
 the timer line on the master PIC. After confirming two ticks, the kernel prints
 its startup messages and records the tick count. It reports once when at least
-100 more ticks have arrived and continues to sleep between interrupts. Look
+100 more ticks have arrived, then enables IRQ1 for keyboard input. Look
 for these lines in order on the serial port.
 
 ```text
@@ -154,6 +155,21 @@ PIT: received at least two IRQ0 ticks
 Hello from construction-os!
 PIT: 100 ticks after boot
 ```
+
+To check keyboard input with `make run`, focus the QEMU display and press and
+release the right arrow. The serial terminal should show these lines in order.
+
+```text
+IRQ1: 0xE0
+IRQ1: 0x4D
+Keyboard: right arrow pressed
+IRQ1: 0xE0
+IRQ1: 0xCD
+Keyboard: right arrow released
+```
+
+The kernel also recognizes the other three arrow keys and Num Lock. It logs
+each dequeued byte, including bytes the decoder does not recognize.
 
 During startup, the kernel validates the Multiboot magic value and reads the
 basic lower and upper memory information when GRUB marks those fields as
@@ -167,7 +183,7 @@ kernel with warnings treated as errors, validates the Multiboot header, builds
 the ISO, and boots it in a headless QEMU. The smoke test requires the serial greeting
 followed by `PIT: 100 ticks after boot`. A stall waiting for either message
 causes a timeout. A reported CPU exception or boot error also fails the test.
-The ISO and serial log are available as downloadable artifacts.
+Keyboard input is checked manually. The ISO and serial log are available as downloadable artifacts.
 
 ## Conventions
 

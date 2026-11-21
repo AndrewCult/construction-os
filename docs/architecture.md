@@ -9,9 +9,10 @@ behind the main design decisions.
 The kernel currently targets the 32-bit x86 architecture and is loaded by a
 Multiboot-compatible bootloader. It runs in protected mode and provides basic
 VGA text output, serial diagnostics, a Global Descriptor Table, an Interrupt
-Descriptor Table for the 32 CPU exception vectors and IRQ0, and two remapped
+Descriptor Table for the 32 CPU exception vectors, IRQ0, and IRQ1, and two remapped
 8259 PICs. A boot check uses the Programmable Interval Timer (PIT) to verify
-repeated hardware interrupt delivery.
+repeated hardware interrupt delivery. The kernel then enables PS/2 keyboard
+input and decodes scan codes in its main loop.
 
 ## Boot flow
 
@@ -25,7 +26,7 @@ The current boot sequence is:
 6. The kernel initializes VGA text output and the serial port.
 7. The kernel validates the Multiboot handoff and reads the available basic
    memory information.
-8. The kernel installs the 32 CPU exception stubs and the IRQ0 stub in the
+8. The kernel installs the 32 CPU exception stubs and both hardware IRQ stubs in the
    Interrupt Descriptor Table, then loads the table.
 9. The 8259 PIC controllers are remapped to IDT vectors 32–47, with every
    hardware IRQ line initially masked.
@@ -33,7 +34,9 @@ The current boot sequence is:
     two timer interrupts.
 11. The kernel enables maskable interrupts, prints the startup messages and
     records the tick count. After 100 more ticks it prints a serial diagnostic
-    and enters its idle loop with IRQ0 enabled.
+    and unmasks IRQ1.
+12. The main loop consumes queued keyboard bytes and sleeps when the queue
+    is empty. Both the timer and the keyboard can wake the CPU.
 
 ## Multiboot handoff
 
@@ -82,7 +85,8 @@ During initialization, `idt_initialize()`:
 1. prepares the IDT descriptor;
 2. installs the assembly entry points for CPU exception vectors 0–31;
 3. installs `irq0_stub` at `PIC_MASTER_VECTOR_OFFSET` (vector 32);
-4. loads the table into the CPU with the `lidt` instruction.
+4. installs `irq1_stub` at the next vector (33);
+5. loads the table into the CPU with the `lidt` instruction.
 
 Each installed entry is a present, ring-0, 32-bit interrupt gate.
 
@@ -111,7 +115,8 @@ During initialization, `pic_initialize()`:
 
 The boot check unmasks only IRQ0. The PIC uses vector 32 to reach the timer
 stub, while the kernel uses line number 0 to change the PIC mask and acknowledge
-each timer interrupt.
+each timer interrupt. After the post-boot timer check, the kernel unmasks
+line 1 so the master PIC can deliver keyboard interrupts on vector 33.
 
 ## Timer interrupts during boot
 
@@ -136,8 +141,41 @@ with `sti` and prints its startup messages. It samples `timer_ticks` after the
 final message and uses unsigned subtraction to count ticks since that sample,
 including across a 32-bit counter wrap. While waiting, `hlt` lets the CPU
 sleep until an interrupt arrives. At 100 or more elapsed ticks the kernel
-prints one confirmation, then loops on `hlt` with IRQ0 still unmasked. Each
-new tick wakes the CPU and runs the same handler.
+prints one confirmation and enables keyboard input. IRQ0 remains unmasked.
+
+## Keyboard interrupts and input processing
+
+The NASM macro `IRQ_STUB` generates both hardware interrupt entry points.
+Each expansion uses the same register-save and return sequence and calls the
+C handler named in its second argument.
+
+On IRQ1, `irq1_handler()` reads one byte from port `0x60` and appends it to a
+ring buffer. The read and write indices are equal when the queue is empty.
+Advancing the write index onto the read index would make a full queue appear
+empty, so one of the four slots stays unused. If three bytes are already
+queued, the handler discards the incoming byte and increments
+`keyboard_dropped_bytes`. It acknowledges the master PIC in either case.
+
+The main loop disables maskable interrupts with `cli` before checking the
+queue. If it is empty, adjacent `sti` and `hlt` instructions let the CPU sleep
+without missing a wake-up between the check and the halt. Otherwise the loop
+removes one byte and snapshots the drop count before enabling interrupts
+again. It can then write diagnostics and decode that byte while IRQ1 can
+enqueue more input. A change in the drop count is reported on VGA and serial.
+
+The decoder interprets scan-code set 1 bytes. It remembers an `0xE0` prefix
+across loop iterations and recognizes the following arrow codes. For these
+keys, setting bit 7 of the second byte indicates release. Num Lock uses a
+single byte. The loop logs each dequeued byte on the serial port and prints
+a key event when the decoder recognizes a press or release.
+
+| Key | Press bytes (hex) | Release bytes (hex) |
+| --- | --- | --- |
+| Right arrow | `E0 4D` | `E0 CD` |
+| Left arrow | `E0 4B` | `E0 CB` |
+| Up arrow | `E0 48` | `E0 C8` |
+| Down arrow | `E0 50` | `E0 D0` |
+| Num Lock | `45` | `C5` |
 
 ## CPU exceptions
 
