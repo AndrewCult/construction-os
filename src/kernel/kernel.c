@@ -1,10 +1,13 @@
 #include "arch/i386/idt.h"
+#include "arch/i386/io.h"
 #include "arch/i386/pic.h"
 #include "arch/i386/pit.h"
 #include "boot/multiboot.h"
 #include "kernel/serial.h"
 #include "kernel/terminal.h"
 #include <stdint.h>
+
+#define PS2_DATA_PORT 0x60u
 
 /*
  * Write a 32-bit unsigned integer in decimal form to both diagnostic outputs.
@@ -46,6 +49,19 @@ static volatile uint32_t timer_ticks;
 void irq0_handler(void) {
   ++timer_ticks;
   pic_send_eoi(0u);
+}
+
+void irq1_handler(void) {
+  static const char hex_digits[] = "0123456789ABCDEF";
+  char value[] = "0x00\n";
+
+  const uint8_t byte = inb(PS2_DATA_PORT);
+  value[2] = hex_digits[byte >> 4];
+  value[3] = hex_digits[byte & 0x0Fu];
+
+  serial_write("IRQ1: ");
+  serial_write(value);
+  pic_send_eoi(1u);
 }
 
 void kernel_main(unsigned int multiboot_magic,
@@ -116,6 +132,7 @@ void kernel_main(unsigned int multiboot_magic,
     __asm__ volatile("hlt" ::: "memory");
   }
   serial_write("PIT: 100 ticks after boot\n");
+  pic_unmask_irq(1u);
 
   for (;;) {
     __asm__ volatile("hlt");

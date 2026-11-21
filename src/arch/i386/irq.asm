@@ -20,3 +20,4 @@ section .text
 %endmacro
 
 IRQ_STUB irq0_stub, irq0_handler
+IRQ_STUB irq1_stub, irq1_handler

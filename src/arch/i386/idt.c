@@ -6,6 +6,7 @@
 #define IDT_ENTRY_COUNT 256u
 
 extern void irq0_stub(void);
+extern void irq1_stub(void);
 
 /*
  * One entry in the 32-bit x86 Interrupt Descriptor Table.
@@ -63,6 +64,7 @@ void idt_initialize(void) {
   }
 
   idt_set_gate(PIC_MASTER_VECTOR_OFFSET, irq0_stub);
+  idt_set_gate(PIC_MASTER_VECTOR_OFFSET + 1u, irq1_stub);
 
   idt_load(&idt_descriptor);
 }
