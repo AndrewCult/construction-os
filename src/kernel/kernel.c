@@ -49,6 +49,7 @@ static volatile uint32_t timer_ticks;
 static uint8_t keyboard_queue[KEYBOARD_QUEUE_SIZE];
 static volatile unsigned int keyboard_write_index;
 static volatile unsigned int keyboard_read_index;
+static volatile uint32_t keyboard_dropped_bytes;
 
 void irq0_handler(void) {
   ++timer_ticks;
@@ -73,6 +74,8 @@ void irq1_handler(void) {
   if (next != keyboard_read_index) {
     keyboard_queue[keyboard_write_index] = byte;
     keyboard_write_index = next;
+  } else {
+    ++keyboard_dropped_bytes;
   }
 
   pic_send_eoi(1u);
@@ -148,6 +151,8 @@ void kernel_main(unsigned int multiboot_magic,
   serial_write("PIT: 100 ticks after boot\n");
   pic_unmask_irq(1u);
 
+  uint32_t reported_drops = 0u;
+
   for (;;) {
     __asm__ volatile("cli" ::: "memory");
 
@@ -158,8 +163,19 @@ void kernel_main(unsigned int multiboot_magic,
 
     const uint8_t byte = keyboard_queue[keyboard_read_index];
     keyboard_read_index = (keyboard_read_index + 1u) % KEYBOARD_QUEUE_SIZE;
+    const uint32_t drops = keyboard_dropped_bytes;
 
     __asm__ volatile("sti" ::: "memory");
     print_keyboard_byte(byte);
+
+    if (drops != reported_drops) {
+      const char *message = "Keyboard bytes dropped: ";
+      terminal_write(message);
+      serial_write(message);
+      write_uint32_decimal(drops);
+      terminal_write("\n");
+      serial_write("\n");
+      reported_drops = drops;
+    }
   }
 }
