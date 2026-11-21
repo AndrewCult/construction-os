@@ -11,7 +11,13 @@
 #define PS2_DATA_PORT 0x60u
 #define KEYBOARD_QUEUE_SIZE 4u
 
-enum key_code { KEY_RIGHT_ARROW };
+enum key_code {
+  KEY_RIGHT_ARROW,
+  KEY_NUM_LOCK,
+  KEY_LEFT_ARROW,
+  KEY_UP_ARROW,
+  KEY_DOWN_ARROW
+};
 
 struct key_event {
   enum key_code key;
@@ -84,17 +90,37 @@ static bool decode_keyboard_byte(uint8_t byte, struct key_event *event) {
   }
 
   if (!extended_pending) {
+    if (byte == 0x45u || byte == 0xC5u) {
+      event->key = KEY_NUM_LOCK;
+      event->pressed = (byte == 0x45u);
+      return true;
+    }
+
     return false;
   }
 
   extended_pending = false;
 
-  if (byte != 0x4Du && byte != 0xCDu) {
+  const uint8_t code = byte & 0x7Fu;
+
+  switch (code) {
+  case 0x4Du:
+    event->key = KEY_RIGHT_ARROW;
+    break;
+  case 0x4Bu:
+    event->key = KEY_LEFT_ARROW;
+    break;
+  case 0x48u:
+    event->key = KEY_UP_ARROW;
+    break;
+  case 0x50u:
+    event->key = KEY_DOWN_ARROW;
+    break;
+  default:
     return false;
   }
 
-  event->key = KEY_RIGHT_ARROW;
-  event->pressed = (byte == 0x4Du);
+  event->pressed = (byte & 0x80u) == 0u;
   return true;
 }
 
@@ -200,12 +226,25 @@ void kernel_main(unsigned int multiboot_magic,
     print_keyboard_byte(byte);
 
     struct key_event event;
-    if (decode_keyboard_byte(byte, &event) && event.key == KEY_RIGHT_ARROW) {
-      if (event.pressed) {
-        serial_write("Keyboard: right arrow pressed\n");
-      } else {
-        serial_write("Keyboard: right arrow released\n");
+    if (decode_keyboard_byte(byte, &event)) {
+      switch (event.key) {
+      case KEY_RIGHT_ARROW:
+        serial_write("Keyboard: right arrow");
+        break;
+      case KEY_NUM_LOCK:
+        serial_write("Keyboard: num lock");
+        break;
+      case KEY_LEFT_ARROW:
+        serial_write("Keyboard: left arrow");
+        break;
+      case KEY_UP_ARROW:
+        serial_write("Keyboard: up arrow");
+        break;
+      case KEY_DOWN_ARROW:
+        serial_write("Keyboard: down arrow");
+        break;
       }
+      serial_write(event.pressed ? " pressed\n" : " released\n");
     }
 
     if (drops != reported_drops) {
