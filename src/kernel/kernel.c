@@ -11,6 +11,13 @@
 #define PS2_DATA_PORT 0x60u
 #define KEYBOARD_QUEUE_SIZE 4u
 
+enum key_code { KEY_RIGHT_ARROW };
+
+struct key_event {
+  enum key_code key;
+  bool pressed;
+};
+
 /*
  * Write a 32-bit unsigned integer in decimal form to both diagnostic outputs.
  */
@@ -66,6 +73,29 @@ static void print_keyboard_byte(uint8_t byte) {
 
   serial_write("IRQ1: ");
   serial_write(value);
+}
+
+static bool decode_keyboard_byte(uint8_t byte, struct key_event *event) {
+  static bool extended_pending = false;
+
+  if (byte == 0xE0u) {
+    extended_pending = true;
+    return false;
+  }
+
+  if (!extended_pending) {
+    return false;
+  }
+
+  extended_pending = false;
+
+  if (byte != 0x4Du && byte != 0xCDu) {
+    return false;
+  }
+
+  event->key = KEY_RIGHT_ARROW;
+  event->pressed = (byte == 0x4Du);
+  return true;
 }
 
 void irq1_handler(void) {
@@ -153,7 +183,6 @@ void kernel_main(unsigned int multiboot_magic,
   pic_unmask_irq(1u);
 
   uint32_t reported_drops = 0u;
-  bool extended_pending = false;
 
   for (;;) {
     __asm__ volatile("cli" ::: "memory");
@@ -170,14 +199,11 @@ void kernel_main(unsigned int multiboot_magic,
     __asm__ volatile("sti" ::: "memory");
     print_keyboard_byte(byte);
 
-    if (byte == 0xE0u) {
-      extended_pending = true;
-    } else if (extended_pending) {
-      extended_pending = false;
-
-      if (byte == 0x4Du) {
+    struct key_event event;
+    if (decode_keyboard_byte(byte, &event) && event.key == KEY_RIGHT_ARROW) {
+      if (event.pressed) {
         serial_write("Keyboard: right arrow pressed\n");
-      } else if (byte == 0xCDu) {
+      } else {
         serial_write("Keyboard: right arrow released\n");
       }
     }
