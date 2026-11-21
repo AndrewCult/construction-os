@@ -8,6 +8,7 @@
 #include <stdint.h>
 
 #define PS2_DATA_PORT 0x60u
+#define KEYBOARD_QUEUE_SIZE 4u
 
 /*
  * Write a 32-bit unsigned integer in decimal form to both diagnostic outputs.
@@ -45,22 +46,35 @@ static void write_uint32_decimal(uint32_t value) {
 }
 
 static volatile uint32_t timer_ticks;
+static uint8_t keyboard_queue[KEYBOARD_QUEUE_SIZE];
+static volatile unsigned int keyboard_write_index;
+static volatile unsigned int keyboard_read_index;
 
 void irq0_handler(void) {
   ++timer_ticks;
   pic_send_eoi(0u);
 }
 
-void irq1_handler(void) {
+static void print_keyboard_byte(uint8_t byte) {
   static const char hex_digits[] = "0123456789ABCDEF";
   char value[] = "0x00\n";
 
-  const uint8_t byte = inb(PS2_DATA_PORT);
   value[2] = hex_digits[byte >> 4];
   value[3] = hex_digits[byte & 0x0Fu];
 
   serial_write("IRQ1: ");
   serial_write(value);
+}
+
+void irq1_handler(void) {
+  const uint8_t byte = inb(PS2_DATA_PORT);
+  const unsigned int next = (keyboard_write_index + 1u) % KEYBOARD_QUEUE_SIZE;
+
+  if (next != keyboard_read_index) {
+    keyboard_queue[keyboard_write_index] = byte;
+    keyboard_write_index = next;
+  }
+
   pic_send_eoi(1u);
 }
 
@@ -135,6 +149,17 @@ void kernel_main(unsigned int multiboot_magic,
   pic_unmask_irq(1u);
 
   for (;;) {
-    __asm__ volatile("hlt");
+    __asm__ volatile("cli" ::: "memory");
+
+    if (keyboard_read_index == keyboard_write_index) {
+      __asm__ volatile("sti\n\thlt" ::: "memory");
+      continue;
+    }
+
+    const uint8_t byte = keyboard_queue[keyboard_read_index];
+    keyboard_read_index = (keyboard_read_index + 1u) % KEYBOARD_QUEUE_SIZE;
+
+    __asm__ volatile("sti" ::: "memory");
+    print_keyboard_byte(byte);
   }
 }
