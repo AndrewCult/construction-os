@@ -17,7 +17,34 @@ enum key_code {
   KEY_LEFT_ARROW,
   KEY_UP_ARROW,
   KEY_DOWN_ARROW,
+  /* Keep letters contiguous so their key codes can be used as alphabet offsets.
+   */
   KEY_A,
+  KEY_B,
+  KEY_C,
+  KEY_D,
+  KEY_E,
+  KEY_F,
+  KEY_G,
+  KEY_H,
+  KEY_I,
+  KEY_J,
+  KEY_K,
+  KEY_L,
+  KEY_M,
+  KEY_N,
+  KEY_O,
+  KEY_P,
+  KEY_Q,
+  KEY_R,
+  KEY_S,
+  KEY_T,
+  KEY_U,
+  KEY_V,
+  KEY_W,
+  KEY_X,
+  KEY_Y,
+  KEY_Z,
   KEY_LEFT_SHIFT,
   KEY_RIGHT_SHIFT,
   KEY_CAPS_LOCK
@@ -91,6 +118,17 @@ static void print_keyboard_byte(uint8_t byte) {
   serial_write(value);
 }
 
+/* ==== Keyboard decoding ==== */
+
+static const char letter_by_scancode[128] = {
+    [0x10] = 'q', [0x11] = 'w', [0x12] = 'e', [0x13] = 'r', [0x14] = 't',
+    [0x15] = 'y', [0x16] = 'u', [0x17] = 'i', [0x18] = 'o', [0x19] = 'p',
+    [0x1E] = 'a', [0x1F] = 's', [0x20] = 'd', [0x21] = 'f', [0x22] = 'g',
+    [0x23] = 'h', [0x24] = 'j', [0x25] = 'k', [0x26] = 'l', [0x2C] = 'z',
+    [0x2D] = 'x', [0x2E] = 'c', [0x2F] = 'v', [0x30] = 'b', [0x31] = 'n',
+    [0x32] = 'm',
+};
+
 /* Return true when a byte completes a recognized key event.
  * An E0 prefix is remembered for the next call. Unknown codes return false.
  */
@@ -106,9 +144,6 @@ static bool decode_keyboard_byte(uint8_t byte, struct key_event *event) {
 
   if (!extended_pending) {
     switch (code) {
-    case 0x1Eu:
-      event->key = KEY_A;
-      break;
     case 0x45u:
       event->key = KEY_NUM_LOCK;
       break;
@@ -121,8 +156,14 @@ static bool decode_keyboard_byte(uint8_t byte, struct key_event *event) {
     case 0x3Au:
       event->key = KEY_CAPS_LOCK;
       break;
-    default:
-      return false;
+    default: {
+      char letter = letter_by_scancode[code];
+      if (letter == '\0') {
+        return false;
+      }
+      event->key = (enum key_code)(KEY_A + (letter - 'a'));
+      break;
+    }
     }
 
     event->pressed = (byte & 0x80u) == 0u;
@@ -154,11 +195,13 @@ static bool decode_keyboard_byte(uint8_t byte, struct key_event *event) {
 
 static bool key_event_to_char(const struct key_event *event, bool shift_down,
                               bool caps_lock_on, char *character) {
-  if (event->pressed && event->key == KEY_A) {
-    *character = (shift_down != caps_lock_on) ? 'A' : 'a';
-    return true;
+  if (!event->pressed || event->key < KEY_A || event->key > KEY_Z) {
+    return false;
   }
-  return false;
+
+  char first = (shift_down != caps_lock_on) ? 'A' : 'a';
+  *character = (char)(first + (event->key - KEY_A));
+  return true;
 }
 
 void irq1_handler(void) {
@@ -297,9 +340,6 @@ void kernel_main(unsigned int multiboot_magic,
       case KEY_DOWN_ARROW:
         serial_write("Keyboard: down arrow");
         break;
-      case KEY_A:
-        serial_write("Keyboard: A");
-        break;
       case KEY_LEFT_SHIFT:
         serial_write("Keyboard: left shift");
         break;
@@ -308,6 +348,15 @@ void kernel_main(unsigned int multiboot_magic,
         break;
       case KEY_CAPS_LOCK:
         serial_write("Keyboard: caps lock");
+        break;
+      default:
+        if (event.key >= KEY_A && event.key <= KEY_Z) {
+          char name[] = {(char)('A' + (event.key - KEY_A)), '\0'};
+          serial_write("Keyboard: ");
+          serial_write(name);
+        } else {
+          serial_write("Keyboard: unknown key");
+        }
         break;
       }
       serial_write(event.pressed ? " pressed\n" : " released\n");
