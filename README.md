@@ -74,7 +74,7 @@ exception, timer, and keyboard interrupt handling, see [Architecture](docs/archi
 - [x] Receive PIT interrupts on IRQ0 during boot
 - [x] Keep the timer running after boot
 - [x] Receive PS/2 keyboard bytes on IRQ1 and decode arrow keys and Num Lock
-- [ ] Translate keyboard events into text input
+- [x] Type alphabetic text on VGA with Shift, Caps Lock, Space, Enter and Backspace
 - [ ] Introduce physical and virtual memory management
 - [ ] Add processes, user mode, and system calls
 - [ ] Implement storage and a minimal filesystem
@@ -108,7 +108,9 @@ header rebuilds every object that includes it.
 
 `make` is equivalent to `make iso`. While QEMU is running, VGA output appears
 in its display window and serial diagnostics are written to the terminal that
-started QEMU.
+started QEMU. To try text input, type `Hello worls` in the QEMU window,
+press Backspace, type `d` and press the main Enter key. The display should
+show `Hello world` with the next character starting on a new line.
 
 ## Repository structure
 

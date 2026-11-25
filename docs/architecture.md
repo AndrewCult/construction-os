@@ -12,7 +12,7 @@ VGA text output, serial diagnostics, a Global Descriptor Table, an Interrupt
 Descriptor Table for the 32 CPU exception vectors, IRQ0, and IRQ1, and two remapped
 8259 PICs. A boot check uses the Programmable Interval Timer (PIT) to verify
 repeated hardware interrupt delivery. The kernel then enables PS/2 keyboard
-input and decodes scan codes in its main loop.
+input. Its main loop decodes scan codes and echoes text to the VGA terminal.
 
 ## Boot flow
 
@@ -163,11 +163,15 @@ removes one byte and snapshots the drop count before enabling interrupts
 again. It can then write diagnostics and decode that byte while IRQ1 can
 enqueue more input. A change in the drop count is reported on VGA and serial.
 
-The decoder interprets scan-code set 1 bytes. It remembers an `0xE0` prefix
-across loop iterations and recognizes the following arrow codes. For these
-keys, setting bit 7 of the second byte indicates release. Num Lock uses a
-single byte. The loop logs each dequeued byte on the serial port and prints
-a key event when the decoder recognizes a press or release.
+### From scan codes to key events
+
+`decode_keyboard_byte()` maps a set 1 scan code to a `key_event` containing
+the key and its press or release state. For the supported keys, bit 7 marks
+a release. The decoder remembers an `0xE0` prefix until the next byte so
+the arrow keys can be identified. For ordinary letter keys, it uses the
+QWERTY table `letter_by_scancode` to select a key from `KEY_A` through
+`KEY_Z`. The serial log records every dequeued byte and each recognized
+event, including the arrow and Num Lock events below.
 
 | Key | Press bytes (hex) | Release bytes (hex) |
 | --- | --- | --- |
@@ -176,6 +180,24 @@ a key event when the decoder recognizes a press or release.
 | Up arrow | `E0 48` | `E0 C8` |
 | Down arrow | `E0 50` | `E0 D0` |
 | Num Lock | `45` | `C5` |
+
+### From key events to VGA text
+
+The main loop tracks each Shift key separately. Releasing one leaves Shift
+active while the other is held. Caps Lock toggles on the first press after
+a release. Repeated press events while the key is down leave the toggle
+unchanged.
+
+`key_event_to_char()` translates presses into characters. A letter is
+uppercase when exactly one of Shift and Caps Lock is active. Space produces
+a space, the main Enter key produces `\n`, and Backspace produces `\b`.
+Releases update modifier state as needed. Arrow keys and Num Lock appear
+only in the serial log.
+
+`terminal_putchar()` owns the VGA cursor. A newline moves it to column zero
+of the next row. Backspace moves it one column left and blanks that cell,
+leaving the cursor there for the next character. At column zero Backspace
+has no effect, including after an automatic line wrap.
 
 ## CPU exceptions
 
