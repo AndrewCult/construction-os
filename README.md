@@ -75,6 +75,7 @@ exception, timer, and keyboard interrupt handling, see [Architecture](docs/archi
 - [x] Keep the timer running after boot
 - [x] Receive PS/2 keyboard bytes on IRQ1 and decode arrow keys and Num Lock
 - [x] Type alphabetic text on VGA with Shift, Caps Lock, Space, Enter and Backspace
+- [x] Enter Italian accented vowels, top-row digits and punctuation with Shift and AltGr
 - [ ] Introduce physical and virtual memory management
 - [ ] Add processes, user mode, and system calls
 - [ ] Implement storage and a minimal filesystem
@@ -111,6 +112,10 @@ in its display window and serial diagnostics are written to the terminal that
 started QEMU. To try text input, type `Hello worls` in the QEMU window,
 press Backspace, type `d` and press the main Enter key. The display should
 show `Hello world` with the next character starting on a new line.
+
+On an Italian keyboard, type `int a[] = {1, 2};` on that line. For the square
+brackets, hold AltGr and press the `è` and `+` keys in turn. For the braces,
+hold Shift and AltGr with the same two keys.
 
 ## Repository structure
 

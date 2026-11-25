@@ -168,10 +168,10 @@ enqueue more input. A change in the drop count is reported on VGA and serial.
 `decode_keyboard_byte()` maps a set 1 scan code to a `key_event` containing
 the key and its press or release state. For the supported keys, bit 7 marks
 a release. The decoder remembers an `0xE0` prefix until the next byte so
-the arrow keys can be identified. For ordinary letter keys, it uses the
+the arrow keys and right Alt (AltGr) can be identified. For ordinary letter keys, it uses the
 QWERTY table `letter_by_scancode` to select a key from `KEY_A` through
 `KEY_Z`. The serial log records every dequeued byte and each recognized
-event, including the arrow and Num Lock events below.
+event, including the examples below.
 
 | Key | Press bytes (hex) | Release bytes (hex) |
 | --- | --- | --- |
@@ -180,6 +180,8 @@ event, including the arrow and Num Lock events below.
 | Up arrow | `E0 48` | `E0 C8` |
 | Down arrow | `E0 50` | `E0 D0` |
 | Num Lock | `45` | `C5` |
+| AltGr | `E0 38` | `E0 B8` |
+| Italian `è` key | `1A` | `9A` |
 
 ### From key events to VGA text
 
@@ -188,8 +190,27 @@ active while the other is held. Caps Lock toggles on the first press after
 a release. Repeated press events while the key is down leave the toggle
 unchanged.
 
-`key_event_to_char()` translates presses into characters. A letter is
-uppercase when exactly one of Shift and Caps Lock is active. Space produces
+The loop also tracks whether AltGr is held. For example, pressing the Italian
+`è` key always produces `KEY_E_GRAVE` and logs `Keyboard: e grave pressed`.
+`key_event_to_char()` selects the character using the current modifiers.
+
+| Key | Plain | Shift | AltGr | Shift + AltGr |
+| --- | --- | --- | --- | --- |
+| `è` | `è` | `é` | `[` | `{` |
+| `+` | `+` | `*` | `]` | `}` |
+| `ò` | `ò` | `ç` | `@` | — |
+| `à` | `à` | `°` | `#` | — |
+
+A dash means the combination produces no character. The top row follows
+physical key order from 1 through 0. Shift selects its Italian symbols
+(for example, Shift + 3 gives `£`). Accented letters and symbols occupy
+one VGA cell each. The byte written to the cell selects a CP437 glyph,
+such as `0x8A` for `è` or `0x9C` for `£`. AltGr + E currently produces
+no character.
+
+Caps Lock affects only the 26 keys from `KEY_A` through `KEY_Z`. They
+produce uppercase letters when exactly one of Shift and Caps Lock is active
+and AltGr is released. Space produces
 a space, the main Enter key produces `\n`, and Backspace produces `\b`.
 Releases update modifier state as needed. Arrow keys and Num Lock appear
 only in the serial log.
