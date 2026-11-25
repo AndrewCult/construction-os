@@ -17,7 +17,10 @@ enum key_code {
   KEY_LEFT_ARROW,
   KEY_UP_ARROW,
   KEY_DOWN_ARROW,
-  KEY_A
+  KEY_A,
+  KEY_LEFT_SHIFT,
+  KEY_RIGHT_SHIFT,
+  KEY_CAPS_LOCK
 };
 
 struct key_event {
@@ -109,6 +112,12 @@ static bool decode_keyboard_byte(uint8_t byte, struct key_event *event) {
     case 0x45u:
       event->key = KEY_NUM_LOCK;
       break;
+    case 0x2Au:
+      event->key = KEY_LEFT_SHIFT;
+      break;
+    case 0x36u:
+      event->key = KEY_RIGHT_SHIFT;
+      break;
     default:
       return false;
     }
@@ -140,9 +149,10 @@ static bool decode_keyboard_byte(uint8_t byte, struct key_event *event) {
   return true;
 }
 
-static bool key_event_to_char(const struct key_event *event, char *character) {
+static bool key_event_to_char(const struct key_event *event, bool shift_down,
+                              char *character) {
   if (event->pressed && event->key == KEY_A) {
-    *character = 'a';
+    *character = shift_down ? 'A' : 'a';
     return true;
   }
   return false;
@@ -229,8 +239,10 @@ void kernel_main(unsigned int multiboot_magic,
   serial_write("PIT: 100 ticks after boot\n");
   pic_unmask_irq(1u);
 
-  /* Keyboard event loop. */
+  /* ===== Keyboard event loop. ===== */
   uint32_t reported_drops = 0u;
+  bool left_shift_down = false;
+  bool right_shift_down = false;
 
   for (;;) {
     __asm__ volatile("cli" ::: "memory");
@@ -252,6 +264,12 @@ void kernel_main(unsigned int multiboot_magic,
 
     struct key_event event;
     if (decode_keyboard_byte(byte, &event)) {
+      if (event.key == KEY_LEFT_SHIFT) {
+        left_shift_down = event.pressed;
+      } else if (event.key == KEY_RIGHT_SHIFT) {
+        right_shift_down = event.pressed;
+      }
+
       switch (event.key) {
       case KEY_RIGHT_ARROW:
         serial_write("Keyboard: right arrow");
@@ -271,11 +289,18 @@ void kernel_main(unsigned int multiboot_magic,
       case KEY_A:
         serial_write("Keyboard: A");
         break;
+      case KEY_LEFT_SHIFT:
+        serial_write("Keyboard: left shift");
+        break;
+      case KEY_RIGHT_SHIFT:
+        serial_write("Keyboard: right shift");
+        break;
       }
       serial_write(event.pressed ? " pressed\n" : " released\n");
 
       char character;
-      if (key_event_to_char(&event, &character)) {
+      if (key_event_to_char(&event, left_shift_down || right_shift_down,
+                            &character)) {
         terminal_putchar(character);
       }
     }
