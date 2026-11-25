@@ -61,6 +61,12 @@ static void write_uint32_decimal(uint32_t value) {
 }
 
 static volatile uint32_t timer_ticks;
+
+/* Keyboard input queue.
+ *
+ * IRQ1 advances the write index. The main loop advances the read index.
+ * One slot stays empty so equal indices always mean an empty queue.
+ */
 static uint8_t keyboard_queue[KEYBOARD_QUEUE_SIZE];
 static volatile unsigned int keyboard_write_index;
 static volatile unsigned int keyboard_read_index;
@@ -82,6 +88,9 @@ static void print_keyboard_byte(uint8_t byte) {
   serial_write(value);
 }
 
+/* Return true when a byte completes a recognized key event.
+ * An E0 prefix is remembered for the next call. Unknown codes return false.
+ */
 static bool decode_keyboard_byte(uint8_t byte, struct key_event *event) {
   static bool extended_pending = false;
 
@@ -167,10 +176,7 @@ void kernel_main(unsigned int multiboot_magic,
     }
   }
 
-  /*
-   * The Multiboot information structure is not inspected yet.
-   * Explicitly mark its address as intentionally unused.
-   */
+  /* Report basic memory information when the bootloader provides it. */
   const struct multiboot_info_prefix *multiboot_info =
       (const struct multiboot_info_prefix *)(uintptr_t)multiboot_info_address;
 
@@ -223,12 +229,16 @@ void kernel_main(unsigned int multiboot_magic,
   serial_write("PIT: 100 ticks after boot\n");
   pic_unmask_irq(1u);
 
+  /* Keyboard event loop. */
   uint32_t reported_drops = 0u;
 
   for (;;) {
     __asm__ volatile("cli" ::: "memory");
 
     if (keyboard_read_index == keyboard_write_index) {
+      /* Keep STI and HLT together so an IRQ arriving after the empty
+       * check wakes the CPU instead of being handled just before sleep.
+       */
       __asm__ volatile("sti\n\thlt" ::: "memory");
       continue;
     }

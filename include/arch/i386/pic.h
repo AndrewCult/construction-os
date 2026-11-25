@@ -15,7 +15,7 @@
 void pic_initialize(void);
 
 /*
- * Enable or disable and individual IRQ line.
+ * Enable or disable an individual IRQ line.
  */
 void pic_unmask_irq(uint8_t irq);
 void pic_mask_irq(uint8_t irq);

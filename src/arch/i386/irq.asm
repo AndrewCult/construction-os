@@ -11,6 +11,9 @@ section .text
 %1:
     pushad
     cld
+
+    ; Keep the address of the saved registers in EBX while ESP is aligned
+    ; for the C call. The handler preserves EBX, so POPAD can use that address.
     mov ebx, esp
     and esp, -16
     call %2
