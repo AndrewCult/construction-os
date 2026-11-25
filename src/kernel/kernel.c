@@ -50,7 +50,31 @@ enum key_code {
   KEY_CAPS_LOCK,
   KEY_SPACE,
   KEY_ENTER,
-  KEY_BACKSPACE
+  KEY_BACKSPACE,
+  /* Top-row digits in scan-code order. */
+  KEY_1,
+  KEY_2,
+  KEY_3,
+  KEY_4,
+  KEY_5,
+  KEY_6,
+  KEY_7,
+  KEY_8,
+  KEY_9,
+  KEY_0,
+  KEY_COMMA,
+  KEY_PERIOD,
+  KEY_MINUS,
+  KEY_APOSTROPHE,
+  KEY_PLUS,
+  KEY_BACKSLASH,
+  KEY_LESS_THAN,
+  KEY_I_GRAVE,
+  KEY_E_GRAVE,
+  KEY_O_GRAVE,
+  KEY_A_GRAVE,
+  KEY_U_GRAVE,
+  KEY_ALT_GR
 };
 
 struct key_event {
@@ -132,6 +156,12 @@ static const char letter_by_scancode[128] = {
     [0x32] = 'm',
 };
 
+static const char top_row_digits[] = "1234567890";
+
+/* In VGA code page 437, the pound sign occupies slot 0x9C. */
+static const char italian_shifted_digits[] = {'!', '"', '\x9C', '$', '%',
+                                              '&', '/', '(',    ')', '='};
+
 /* Return true when a byte completes a recognized key event.
  * An E0 prefix is remembered for the next call. Unknown codes return false.
  */
@@ -168,7 +198,47 @@ static bool decode_keyboard_byte(uint8_t byte, struct key_event *event) {
     case 0x0Eu:
       event->key = KEY_BACKSPACE;
       break;
+    case 0x33u:
+      event->key = KEY_COMMA;
+      break;
+    case 0x34u:
+      event->key = KEY_PERIOD;
+      break;
+    case 0x35u:
+      event->key = KEY_MINUS;
+      break;
+    case 0x0C:
+      event->key = KEY_APOSTROPHE;
+      break;
+    case 0x1B:
+      event->key = KEY_PLUS;
+      break;
+    case 0x29:
+      event->key = KEY_BACKSLASH;
+      break;
+    case 0x56:
+      event->key = KEY_LESS_THAN;
+      break;
+    case 0x0D:
+      event->key = KEY_I_GRAVE;
+      break;
+    case 0x1A:
+      event->key = KEY_E_GRAVE;
+      break;
+    case 0x27:
+      event->key = KEY_O_GRAVE;
+      break;
+    case 0x28:
+      event->key = KEY_A_GRAVE;
+      break;
+    case 0x2B:
+      event->key = KEY_U_GRAVE;
+      break;
     default: {
+      if (code >= 0x02u && code <= 0x0Bu) {
+        event->key = (enum key_code)(KEY_1 + (code - 0x02u));
+        break;
+      }
       char letter = letter_by_scancode[code];
       if (letter == '\0') {
         return false;
@@ -197,6 +267,9 @@ static bool decode_keyboard_byte(uint8_t byte, struct key_event *event) {
   case 0x50u:
     event->key = KEY_DOWN_ARROW;
     break;
+  case 0x38u:
+    event->key = KEY_ALT_GR;
+    break;
   default:
     return false;
   }
@@ -206,7 +279,8 @@ static bool decode_keyboard_byte(uint8_t byte, struct key_event *event) {
 }
 
 static bool key_event_to_char(const struct key_event *event, bool shift_down,
-                              bool caps_lock_on, char *character) {
+                              bool caps_lock_on, bool altgr_down,
+                              char *character) {
   if (!event->pressed) {
     return false;
   }
@@ -226,13 +300,84 @@ static bool key_event_to_char(const struct key_event *event, bool shift_down,
     return true;
   }
 
+  if (altgr_down) {
+    switch (event->key) {
+    case KEY_E_GRAVE:
+      *character = shift_down ? '{' : '[';
+      return true;
+    case KEY_PLUS:
+      *character = shift_down ? '}' : ']';
+      return true;
+    case KEY_O_GRAVE:
+      if (shift_down) {
+        return false;
+      }
+      *character = '@';
+      return true;
+    case KEY_A_GRAVE:
+      if (shift_down) {
+        return false;
+      }
+      *character = '#';
+      return true;
+    default:
+      return false;
+    }
+  }
+
+  if (event->key >= KEY_1 && event->key <= KEY_0) {
+    unsigned int index = (unsigned int)(event->key - KEY_1);
+    *character =
+        shift_down ? italian_shifted_digits[index] : top_row_digits[index];
+    return true;
+  }
+
   if (event->key >= KEY_A && event->key <= KEY_Z) {
     char first = (shift_down != caps_lock_on) ? 'A' : 'a';
     *character = (char)(first + (event->key - KEY_A));
     return true;
   }
 
-  return false;
+  switch (event->key) {
+  case KEY_COMMA:
+    *character = shift_down ? ';' : ',';
+    return true;
+  case KEY_PERIOD:
+    *character = shift_down ? ':' : '.';
+    return true;
+  case KEY_MINUS:
+    *character = shift_down ? '_' : '-';
+    return true;
+  case KEY_APOSTROPHE:
+    *character = shift_down ? '?' : '\'';
+    return true;
+  case KEY_PLUS:
+    *character = shift_down ? '*' : '+';
+    return true;
+  case KEY_BACKSLASH:
+    *character = shift_down ? '|' : '\\';
+    return true;
+  case KEY_LESS_THAN:
+    *character = shift_down ? '>' : '<';
+    return true;
+  case KEY_I_GRAVE:
+    *character = shift_down ? '^' : '\x8D'; /* ì / ^ */
+    return true;
+  case KEY_E_GRAVE:
+    *character = shift_down ? '\x82' : '\x8A'; /* è / é */
+    return true;
+  case KEY_O_GRAVE:
+    *character = shift_down ? '\x87' : '\x95'; /* ò / ç */
+    return true;
+  case KEY_A_GRAVE:
+    *character = shift_down ? '\xF8' : '\x85'; /* à / ° */
+    return true;
+  case KEY_U_GRAVE:
+    *character = shift_down ? '\x15' : '\x97'; /* ù / § */
+    return true;
+  default:
+    return false;
+  }
 }
 
 void irq1_handler(void) {
@@ -322,6 +467,7 @@ void kernel_main(unsigned int multiboot_magic,
   bool right_shift_down = false;
   bool caps_lock_down = false;
   bool caps_lock_on = false;
+  bool altgr_down = false;
 
   for (;;) {
     __asm__ volatile("cli" ::: "memory");
@@ -353,6 +499,8 @@ void kernel_main(unsigned int multiboot_magic,
           caps_lock_on = !caps_lock_on;
         }
         caps_lock_down = event.pressed;
+      } else if (event.key == KEY_ALT_GR) {
+        altgr_down = event.pressed;
       }
 
       switch (event.key) {
@@ -389,9 +537,52 @@ void kernel_main(unsigned int multiboot_magic,
       case KEY_BACKSPACE:
         serial_write("Keyboard: backspace");
         break;
+      case KEY_COMMA:
+        serial_write("Keyboard: comma");
+        break;
+      case KEY_PERIOD:
+        serial_write("Keyboard: period");
+        break;
+      case KEY_MINUS:
+        serial_write("Keyboard: minus");
+        break;
+      case KEY_APOSTROPHE:
+        serial_write("Keyboard: apostrophe");
+        break;
+      case KEY_PLUS:
+        serial_write("Keyboard: plus");
+        break;
+      case KEY_BACKSLASH:
+        serial_write("Keyboard: backslash");
+        break;
+      case KEY_LESS_THAN:
+        serial_write("Keyboard: less than");
+        break;
+      case KEY_I_GRAVE:
+        serial_write("Keyboard: i grave");
+        break;
+      case KEY_E_GRAVE:
+        serial_write("Keyboard: e grave");
+        break;
+      case KEY_O_GRAVE:
+        serial_write("Keyboard: o grave");
+        break;
+      case KEY_A_GRAVE:
+        serial_write("Keyboard: a grave");
+        break;
+      case KEY_U_GRAVE:
+        serial_write("Keyboard: u grave");
+        break;
+      case KEY_ALT_GR:
+        serial_write("Keyboard: altgr");
+        break;
       default:
         if (event.key >= KEY_A && event.key <= KEY_Z) {
           char name[] = {(char)('A' + (event.key - KEY_A)), '\0'};
+          serial_write("Keyboard: ");
+          serial_write(name);
+        } else if (event.key >= KEY_1 && event.key <= KEY_0) {
+          char name[] = {top_row_digits[event.key - KEY_1], '\0'};
           serial_write("Keyboard: ");
           serial_write(name);
         } else {
@@ -403,7 +594,7 @@ void kernel_main(unsigned int multiboot_magic,
 
       char character;
       if (key_event_to_char(&event, left_shift_down || right_shift_down,
-                            caps_lock_on, &character)) {
+                            caps_lock_on, altgr_down, &character)) {
         terminal_putchar(character);
       }
     }
