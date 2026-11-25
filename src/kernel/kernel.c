@@ -118,6 +118,9 @@ static bool decode_keyboard_byte(uint8_t byte, struct key_event *event) {
     case 0x36u:
       event->key = KEY_RIGHT_SHIFT;
       break;
+    case 0x3Au:
+      event->key = KEY_CAPS_LOCK;
+      break;
     default:
       return false;
     }
@@ -150,9 +153,9 @@ static bool decode_keyboard_byte(uint8_t byte, struct key_event *event) {
 }
 
 static bool key_event_to_char(const struct key_event *event, bool shift_down,
-                              char *character) {
+                              bool caps_lock_on, char *character) {
   if (event->pressed && event->key == KEY_A) {
-    *character = shift_down ? 'A' : 'a';
+    *character = (shift_down != caps_lock_on) ? 'A' : 'a';
     return true;
   }
   return false;
@@ -243,6 +246,8 @@ void kernel_main(unsigned int multiboot_magic,
   uint32_t reported_drops = 0u;
   bool left_shift_down = false;
   bool right_shift_down = false;
+  bool caps_lock_down = false;
+  bool caps_lock_on = false;
 
   for (;;) {
     __asm__ volatile("cli" ::: "memory");
@@ -268,6 +273,12 @@ void kernel_main(unsigned int multiboot_magic,
         left_shift_down = event.pressed;
       } else if (event.key == KEY_RIGHT_SHIFT) {
         right_shift_down = event.pressed;
+      } else if (event.key == KEY_CAPS_LOCK) {
+        /* Toggle once per physical press, even if a press event repeats. */
+        if (event.pressed && !caps_lock_down) {
+          caps_lock_on = !caps_lock_on;
+        }
+        caps_lock_down = event.pressed;
       }
 
       switch (event.key) {
@@ -295,12 +306,15 @@ void kernel_main(unsigned int multiboot_magic,
       case KEY_RIGHT_SHIFT:
         serial_write("Keyboard: right shift");
         break;
+      case KEY_CAPS_LOCK:
+        serial_write("Keyboard: caps lock");
+        break;
       }
       serial_write(event.pressed ? " pressed\n" : " released\n");
 
       char character;
       if (key_event_to_char(&event, left_shift_down || right_shift_down,
-                            &character)) {
+                            caps_lock_on, &character)) {
         terminal_putchar(character);
       }
     }
