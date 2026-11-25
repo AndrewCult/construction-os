@@ -83,6 +83,16 @@ void terminal_putchar(char character) {
     return;
   }
 
+  if (character == '\b') {
+    /* Backspace stops at the left edge of the current VGA row. */
+    if (terminal_column > 0u) {
+      --terminal_column;
+      VGA_MEMORY[vga_index(terminal_row, terminal_column)] =
+          vga_make_entry((unsigned char)' ', terminal_color);
+    }
+    return;
+  }
+
   VGA_MEMORY[vga_index(terminal_row, terminal_column)] =
       vga_make_entry((unsigned char)character, terminal_color);
 

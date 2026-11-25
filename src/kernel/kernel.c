@@ -47,7 +47,10 @@ enum key_code {
   KEY_Z,
   KEY_LEFT_SHIFT,
   KEY_RIGHT_SHIFT,
-  KEY_CAPS_LOCK
+  KEY_CAPS_LOCK,
+  KEY_SPACE,
+  KEY_ENTER,
+  KEY_BACKSPACE
 };
 
 struct key_event {
@@ -156,6 +159,15 @@ static bool decode_keyboard_byte(uint8_t byte, struct key_event *event) {
     case 0x3Au:
       event->key = KEY_CAPS_LOCK;
       break;
+    case 0x39u:
+      event->key = KEY_SPACE;
+      break;
+    case 0x1Cu:
+      event->key = KEY_ENTER;
+      break;
+    case 0x0Eu:
+      event->key = KEY_BACKSPACE;
+      break;
     default: {
       char letter = letter_by_scancode[code];
       if (letter == '\0') {
@@ -195,13 +207,32 @@ static bool decode_keyboard_byte(uint8_t byte, struct key_event *event) {
 
 static bool key_event_to_char(const struct key_event *event, bool shift_down,
                               bool caps_lock_on, char *character) {
-  if (!event->pressed || event->key < KEY_A || event->key > KEY_Z) {
+  if (!event->pressed) {
     return false;
   }
 
-  char first = (shift_down != caps_lock_on) ? 'A' : 'a';
-  *character = (char)(first + (event->key - KEY_A));
-  return true;
+  if (event->key == KEY_SPACE) {
+    *character = ' ';
+    return true;
+  }
+
+  if (event->key == KEY_ENTER) {
+    *character = '\n';
+    return true;
+  }
+
+  if (event->key == KEY_BACKSPACE) {
+    *character = '\b';
+    return true;
+  }
+
+  if (event->key >= KEY_A && event->key <= KEY_Z) {
+    char first = (shift_down != caps_lock_on) ? 'A' : 'a';
+    *character = (char)(first + (event->key - KEY_A));
+    return true;
+  }
+
+  return false;
 }
 
 void irq1_handler(void) {
@@ -348,6 +379,15 @@ void kernel_main(unsigned int multiboot_magic,
         break;
       case KEY_CAPS_LOCK:
         serial_write("Keyboard: caps lock");
+        break;
+      case KEY_SPACE:
+        serial_write("Keyboard: space");
+        break;
+      case KEY_ENTER:
+        serial_write("Keyboard: enter");
+        break;
+      case KEY_BACKSPACE:
+        serial_write("Keyboard: backspace");
         break;
       default:
         if (event.key >= KEY_A && event.key <= KEY_Z) {
