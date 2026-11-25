@@ -6,6 +6,9 @@
  */
 void terminal_initialize(void);
 
+/* Write one character at the current cursor position. */
+void terminal_putchar(char character);
+
 /*
  * Write a null-terminated string at the current cursor position.
  */

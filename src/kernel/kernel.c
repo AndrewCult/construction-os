@@ -131,6 +131,14 @@ static bool decode_keyboard_byte(uint8_t byte, struct key_event *event) {
   return true;
 }
 
+static bool key_event_to_char(const struct key_event *event, char *character) {
+  if (event->pressed && event->key == KEY_A) {
+    *character = 'a';
+    return true;
+  }
+  return false;
+}
+
 void irq1_handler(void) {
   const uint8_t byte = inb(PS2_DATA_PORT);
   const unsigned int next = (keyboard_write_index + 1u) % KEYBOARD_QUEUE_SIZE;
@@ -255,6 +263,11 @@ void kernel_main(unsigned int multiboot_magic,
         break;
       }
       serial_write(event.pressed ? " pressed\n" : " released\n");
+
+      char character;
+      if (key_event_to_char(&event, &character)) {
+        terminal_putchar(character);
+      }
     }
 
     if (drops != reported_drops) {

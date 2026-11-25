@@ -77,7 +77,7 @@ static void terminal_advance_line(void) {
 /*
  * Write one character and update the software cursor.
  */
-static void terminal_putchar(char character) {
+void terminal_putchar(char character) {
   if (character == '\n') {
     terminal_advance_line();
     return;
