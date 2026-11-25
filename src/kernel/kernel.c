@@ -16,7 +16,8 @@ enum key_code {
   KEY_NUM_LOCK,
   KEY_LEFT_ARROW,
   KEY_UP_ARROW,
-  KEY_DOWN_ARROW
+  KEY_DOWN_ARROW,
+  KEY_A
 };
 
 struct key_event {
@@ -89,19 +90,25 @@ static bool decode_keyboard_byte(uint8_t byte, struct key_event *event) {
     return false;
   }
 
+  const uint8_t code = byte & 0x7Fu;
+
   if (!extended_pending) {
-    if (byte == 0x45u || byte == 0xC5u) {
+    switch (code) {
+    case 0x1Eu:
+      event->key = KEY_A;
+      break;
+    case 0x45u:
       event->key = KEY_NUM_LOCK;
-      event->pressed = (byte == 0x45u);
-      return true;
+      break;
+    default:
+      return false;
     }
 
-    return false;
+    event->pressed = (byte & 0x80u) == 0u;
+    return true;
   }
 
   extended_pending = false;
-
-  const uint8_t code = byte & 0x7Fu;
 
   switch (code) {
   case 0x4Du:
@@ -242,6 +249,9 @@ void kernel_main(unsigned int multiboot_magic,
         break;
       case KEY_DOWN_ARROW:
         serial_write("Keyboard: down arrow");
+        break;
+      case KEY_A:
+        serial_write("Keyboard: A");
         break;
       }
       serial_write(event.pressed ? " pressed\n" : " released\n");
