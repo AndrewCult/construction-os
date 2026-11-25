@@ -167,9 +167,10 @@ enqueue more input. A change in the drop count is reported on VGA and serial.
 
 `decode_keyboard_byte()` maps a set 1 scan code to a `key_event` containing
 the key and its press or release state. For the supported keys, bit 7 marks
-a release. The decoder remembers an `0xE0` prefix until the next byte so
-the arrow keys and right Alt (AltGr) can be identified. For ordinary letter keys, it uses the
-QWERTY table `letter_by_scancode` to select a key from `KEY_A` through
+a release. The decoder remembers an `0xE0` prefix until the next byte.
+For example, `48` selects keypad 8 (`KEY_KP_8`) and `E0 48` selects the
+dedicated up arrow (`KEY_UP_ARROW`). Num Lock has no effect on this decoding.
+For ordinary letter keys, the decoder uses the QWERTY table `letter_by_scancode` to select a key from `KEY_A` through
 `KEY_Z`. The serial log records every dequeued byte and each recognized
 event, including the examples below.
 
@@ -178,6 +179,7 @@ event, including the examples below.
 | Right arrow | `E0 4D` | `E0 CD` |
 | Left arrow | `E0 4B` | `E0 CB` |
 | Up arrow | `E0 48` | `E0 C8` |
+| Keypad 8 | `48` | `C8` |
 | Down arrow | `E0 50` | `E0 D0` |
 | Num Lock | `45` | `C5` |
 | AltGr | `E0 38` | `E0 B8` |
@@ -210,10 +212,16 @@ no character.
 
 Caps Lock affects only the 26 keys from `KEY_A` through `KEY_Z`. They
 produce uppercase letters when exactly one of Shift and Caps Lock is active
-and AltGr is released. Space produces
-a space, the main Enter key produces `\n`, and Backspace produces `\b`.
-Releases update modifier state as needed. Arrow keys and Num Lock appear
-only in the serial log.
+and AltGr is released. Space produces a space, both Enter keys produce
+`\n`, and Backspace produces `\b`. The dedicated arrows produce serial
+events.
+
+Num Lock starts off. The main loop tracks whether the key is held so that
+each physical press toggles the mode once. With Num Lock on,
+`key_event_to_char()` translates keypad digits and the decimal point into
+`0` through `9` and `.`. With it off, those keys produce no text. Keypad
+`+`, `-`, `*`, `/` and Enter work in either mode. The serial log identifies
+keypad digits in both modes (for example, `Keyboard: keypad 8 pressed`).
 
 `terminal_putchar()` owns the VGA cursor. A newline moves it to column zero
 of the next row. Backspace moves it one column left and blanks that cell,

@@ -76,6 +76,7 @@ exception, timer, and keyboard interrupt handling, see [Architecture](docs/archi
 - [x] Receive PS/2 keyboard bytes on IRQ1 and decode arrow keys and Num Lock
 - [x] Type alphabetic text on VGA with Shift, Caps Lock, Space, Enter and Backspace
 - [x] Enter Italian accented vowels, top-row digits and punctuation with Shift and AltGr
+- [x] Handle numeric keypad input with Num Lock
 - [ ] Introduce physical and virtual memory management
 - [ ] Add processes, user mode, and system calls
 - [ ] Implement storage and a minimal filesystem
@@ -116,6 +117,12 @@ show `Hello world` with the next character starting on a new line.
 On an Italian keyboard, type `int a[] = {1, 2};` on that line. For the square
 brackets, hold AltGr and press the `è` and `+` keys in turn. For the braces,
 hold Shift and AltGr with the same two keys.
+
+The kernel starts with Num Lock off. Press Num Lock once, type
+`12.5+3*4-8/2` using only the keypad, then press keypad Enter. The VGA
+display should echo the expression and advance to the next line. Toggle Num
+Lock off and repeat the test. This time only `+*-/` should appear before
+the line break.
 
 ## Repository structure
 
