@@ -74,7 +74,23 @@ enum key_code {
   KEY_O_GRAVE,
   KEY_A_GRAVE,
   KEY_U_GRAVE,
-  KEY_ALT_GR
+  KEY_ALT_GR,
+  KEY_KP_0,
+  KEY_KP_1,
+  KEY_KP_2,
+  KEY_KP_3,
+  KEY_KP_4,
+  KEY_KP_5,
+  KEY_KP_6,
+  KEY_KP_7,
+  KEY_KP_8,
+  KEY_KP_9,
+  KEY_KP_MULTIPLY,
+  KEY_KP_SUBTRACT,
+  KEY_KP_ADD,
+  KEY_KP_DECIMAL,
+  KEY_KP_DIVIDE,
+  KEY_KP_ENTER
 };
 
 struct key_event {
@@ -156,6 +172,11 @@ static const char letter_by_scancode[128] = {
     [0x32] = 'm',
 };
 
+static const char keypad_digit_by_scancode[128] = {
+    [0x47] = '7', [0x48] = '8', [0x49] = '9', [0x4B] = '4', [0x4C] = '5',
+    [0x4D] = '6', [0x4F] = '1', [0x50] = '2', [0x51] = '3', [0x52] = '0',
+};
+
 static const char top_row_digits[] = "1234567890";
 
 /* In VGA code page 437, the pound sign occupies slot 0x9C. */
@@ -234,9 +255,26 @@ static bool decode_keyboard_byte(uint8_t byte, struct key_event *event) {
     case 0x2B:
       event->key = KEY_U_GRAVE;
       break;
+    case 0x37:
+      event->key = KEY_KP_MULTIPLY;
+      break;
+    case 0x4A:
+      event->key = KEY_KP_SUBTRACT;
+      break;
+    case 0x4E:
+      event->key = KEY_KP_ADD;
+      break;
+    case 0x53:
+      event->key = KEY_KP_DECIMAL;
+      break;
     default: {
       if (code >= 0x02u && code <= 0x0Bu) {
         event->key = (enum key_code)(KEY_1 + (code - 0x02u));
+        break;
+      }
+      char digit = keypad_digit_by_scancode[code];
+      if (digit != '\0') {
+        event->key = (enum key_code)(KEY_KP_0 + (digit - '0'));
         break;
       }
       char letter = letter_by_scancode[code];
@@ -270,6 +308,12 @@ static bool decode_keyboard_byte(uint8_t byte, struct key_event *event) {
   case 0x38u:
     event->key = KEY_ALT_GR;
     break;
+  case 0x35u:
+    event->key = KEY_KP_DIVIDE;
+    break;
+  case 0x1Cu:
+    event->key = KEY_KP_ENTER;
+    break;
   default:
     return false;
   }
@@ -280,7 +324,7 @@ static bool decode_keyboard_byte(uint8_t byte, struct key_event *event) {
 
 static bool key_event_to_char(const struct key_event *event, bool shift_down,
                               bool caps_lock_on, bool altgr_down,
-                              char *character) {
+                              bool num_lock_on, char *character) {
   if (!event->pressed) {
     return false;
   }
@@ -290,7 +334,7 @@ static bool key_event_to_char(const struct key_event *event, bool shift_down,
     return true;
   }
 
-  if (event->key == KEY_ENTER) {
+  if (event->key == KEY_ENTER || event->key == KEY_KP_ENTER) {
     *character = '\n';
     return true;
   }
@@ -323,6 +367,15 @@ static bool key_event_to_char(const struct key_event *event, bool shift_down,
     default:
       return false;
     }
+  }
+
+  if (event->key >= KEY_KP_0 && event->key <= KEY_KP_9) {
+    if (!num_lock_on) {
+      return false;
+    }
+
+    *character = (char)('0' + (event->key - KEY_KP_0));
+    return true;
   }
 
   if (event->key >= KEY_1 && event->key <= KEY_0) {
@@ -374,6 +427,24 @@ static bool key_event_to_char(const struct key_event *event, bool shift_down,
     return true;
   case KEY_U_GRAVE:
     *character = shift_down ? '\x15' : '\x97'; /* ù / § */
+    return true;
+  case KEY_KP_MULTIPLY:
+    *character = '*';
+    return true;
+  case KEY_KP_SUBTRACT:
+    *character = '-';
+    return true;
+  case KEY_KP_ADD:
+    *character = '+';
+    return true;
+  case KEY_KP_DIVIDE:
+    *character = '/';
+    return true;
+  case KEY_KP_DECIMAL:
+    if (!num_lock_on) {
+      return false;
+    }
+    *character = '.';
     return true;
   default:
     return false;
@@ -468,6 +539,8 @@ void kernel_main(unsigned int multiboot_magic,
   bool caps_lock_down = false;
   bool caps_lock_on = false;
   bool altgr_down = false;
+  bool num_lock_down = false;
+  bool num_lock_on = false;
 
   for (;;) {
     __asm__ volatile("cli" ::: "memory");
@@ -501,6 +574,11 @@ void kernel_main(unsigned int multiboot_magic,
         caps_lock_down = event.pressed;
       } else if (event.key == KEY_ALT_GR) {
         altgr_down = event.pressed;
+      } else if (event.key == KEY_NUM_LOCK) {
+        if (event.pressed && !num_lock_down) {
+          num_lock_on = !num_lock_on;
+        }
+        num_lock_down = event.pressed;
       }
 
       switch (event.key) {
@@ -585,6 +663,10 @@ void kernel_main(unsigned int multiboot_magic,
           char name[] = {top_row_digits[event.key - KEY_1], '\0'};
           serial_write("Keyboard: ");
           serial_write(name);
+        } else if (event.key >= KEY_KP_0 && event.key <= KEY_KP_9) {
+          char name[] = {(char)('0' + (event.key - KEY_KP_0)), '\0'};
+          serial_write("Keyboard: keypad ");
+          serial_write(name);
         } else {
           serial_write("Keyboard: unknown key");
         }
@@ -594,7 +676,8 @@ void kernel_main(unsigned int multiboot_magic,
 
       char character;
       if (key_event_to_char(&event, left_shift_down || right_shift_down,
-                            caps_lock_on, altgr_down, &character)) {
+                            caps_lock_on, altgr_down, num_lock_on,
+                            &character)) {
         terminal_putchar(character);
       }
     }
